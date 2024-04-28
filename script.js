@@ -1,5 +1,3 @@
-const count_request = 8;
-const count_display = 3;
 
 function getTime(datetime)
 {
@@ -115,12 +113,12 @@ function format_table(station, results)
 
 const now = new Date(Date.now());
 
-let format = format_list;
-format = format_table;
-
 let query = window.location.search;
 const params = new URLSearchParams(query);
 const line = params.get('line');
+const count_display = params.has('count') ? params.get('count') : 3;
+const count_request = count_display*3;
+const format = params.get('format') == 'list' ? format_list : format_table;
 
 function displayStations(slot) {
   let i = 1;
