@@ -10,14 +10,14 @@ const stations = [
 const count_request = 8;
 const count_display = 3;
 
-function getElement(station)
+function getElement(station, index)
 {
-  return stations.filter(tuple => tuple[1] === station)[0];
+  return stations.filter(tuple => tuple[index] === station)[0];
 }
 
 function displayStation(station, directions)
 {
-  const station_id = getElement(station)[0];
+  const station_id = getElement(station, 1)[0];
 
 	$(document.body).append('<h3>' + station + ':</h3>');
 //  var ul = document.createElement('ul');
@@ -57,7 +57,7 @@ function displayStation(station, directions)
       // filter directions
       let right_direction = false;
       for (const dir of directions) {
-        if (dep.display_informations.direction == getElement(dir)[2]) {
+        if (dep.display_informations.direction == getElement(dir, 1)[2]) {
           right_direction = true;
           break;
         }
@@ -67,7 +67,7 @@ function displayStation(station, directions)
       if (right_direction && (ndisp < count_display))
       {
         t = dep.stop_date_time.departure_date_time.replace(/^[0-9]{4}[0-9]{1,2}[0-9]{1,2}T([0-9]{2})([0-9]{2})[0-9]{2}$/, "$1:$2");
-        $li.html(t + ' ' + dep.display_informations.direction);
+        $li.html(t + ' ' + getElement(dep.display_informations.direction, 2)[1]);
 
         $ul.append($li);
 
