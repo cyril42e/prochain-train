@@ -73,8 +73,8 @@ Pour l'instant l'affichage des voies n'est pas implémenté, car l'information e
 
 <h2>Explications techniques</h2>
 
-<p>L'<a href="https://numerique.sncf.com/startup/api/">API</a> officielle de la SNCF est exploitée, notamment la requête <pre>departures</pre>:
-<pre>https://api.sncf.com/v1/coverage/sncf/stop_areas/stop_area:SNCF:<station_id>/lines/line:SNCF:FR:Line::<line_id>:/departures?count=9</pre></p>
+<p>L'<a href="https://numerique.sncf.com/startup/api/">API</a> officielle de la SNCF est exploitée, notamment la requête "departures" :
+<pre>https://api.sncf.com/v1/coverage/sncf/stop_areas/stop_area:SNCF:&lt;station_id&gt;/lines/line:SNCF:FR:Line::&lt;line_id&gt;:/departures?count=9</pre></p>
 
 <p>Une clé d'accès personnelle est nécessaire pour accéder à l'API, obtenable gratuitement <a href="https://numerique.sncf.com/startup/api/token-developpeur/">
 sur le site de l'API SNCF</a>. Si vous forkez le projet, s'il vous plait demandez votre propre clé et n'utilisez pas celle de ce site.</p>
