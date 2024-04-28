@@ -142,7 +142,6 @@ function formatTE(el) {
   return el < 10 ? "0" + el : el;
 }
 
-//document.body.appendChild(document.createTextNode(" @" + formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds())));
-document.title += " @" + formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds());
+document.body.prepend(document.createTextNode("Prochains trains à " + formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds())));
 
 
