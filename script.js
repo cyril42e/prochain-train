@@ -1,19 +1,5 @@
-const stations = [
-  ["87611004", "Matabiau", "Toulouse Matabiau (Toulouse)"],
-  ["87446179", "Arenes", "Saint-Cyprien - Arènes (Toulouse)"],
-  ["87611467", "Colomiers", "Colomiers (Colomiers)"],
-  ["87611921", "Lycee", "Colomiers - Lycée International (Colomiers)"],
-  ["87611806", "Jourdain", "L'Isle-Jourdain (L'Isle-Jourdain)"],
-  ["87611749", "Auch", "Auch (Auch)"]
-];
-
 const count_request = 8;
 const count_display = 3;
-
-function getElement(station, index)
-{
-  return stations.filter(tuple => tuple[index] === station)[0];
-}
 
 function getTime(datetime)
 {
@@ -21,14 +7,14 @@ function getTime(datetime)
 }
 
 
-function displayStation(station, directions, format)
+function displayStation(line_id, station_id, direction_excludes, format)
 {
-  const station_id = getElement(station, 1)[0];
-  const line_id = "line:SNCF:FR:Line::DDEF5935-0332-4ED5-B499-5C664AF7CF05:";
   const token = "cbfb30d4-a3b4-472e-9657-6ee4319e0501";
+  const full_line_id = 'line:SNCF:FR:Line::' + line_id + ':';
+  const full_station_id = 'stop_area:SNCF:' + station_id;
 
   // Url to retrieve departures
-  var departuresUrl = 'https://api.sncf.com/v1/coverage/sncf/stop_areas/stop_area:SNCF:' + station_id + '/lines/' + line_id + '/departures?count=' + count_request;
+  var departuresUrl = 'https://api.sncf.com/v1/coverage/sncf/stop_areas/' + full_station_id + '/lines/' + full_line_id + '/departures?count=' + count_request;
 
   // Call Navitia API
   $.ajax({
@@ -44,6 +30,8 @@ function displayStation(station, directions, format)
     }
   });
 
+  let station = "";
+
   // Displays departures
   function displayDepartures(navitiaResult) {
     let ndisp = 0;
@@ -51,10 +39,10 @@ function displayStation(station, directions, format)
     $.each(navitiaResult.departures, function(i, dep) {
 
       // filter directions
-      let right_direction = false;
-      for (const dir of directions) {
-        if (dep.display_informations.direction == getElement(dir, 1)[2]) {
-          right_direction = true;
+      let right_direction = true;
+      for (const excl of direction_excludes) {
+        if (dep.display_informations.direction.toLowerCase().indexOf(excl.toLowerCase()) != -1) {
+          right_direction = false;
           break;
         }
       }
@@ -68,9 +56,12 @@ function displayStation(station, directions, format)
         results.push([[getTime(dep.stop_date_time.departure_date_time), cr],
                       [getTime(dep.stop_date_time.base_departure_date_time), cs],
                       ["", ""], // track/platform
-                      [getElement(dep.display_informations.direction, 2)[1], ""]]);
+                      [dep.display_informations.direction.replace(/ \(.*/g, ""), ""]]);
         ndisp++;
       }
+
+      // get full station name
+      station = dep.stop_point.name;
     });
 
     format(station, results);
@@ -127,16 +118,31 @@ const now = new Date(Date.now());
 let format = format_list;
 format = format_table;
 
-if (now.getHours() < 12) {
-  displayStation("Lycee", ["Matabiau"], format);
-  displayStation("Colomiers", ["Arenes"], format);
+let query = window.location.search;
+const params = new URLSearchParams(query);
+const line = params.get('line');
+
+function displayStations(slot) {
+  let i = 1;
+  while (params.has(slot + i)) {
+    const station = params.get(slot + i);
+    const direction_excludes = params.get(slot + i + 'x').split(';');
+    displayStation(line, station, direction_excludes, format);
+    i++;
+  }
+}
+
+if (now.getHours() < 12) { // morning
+  displayStations('sm');
 } else {
-  displayStation("Matabiau", ["Jourdain", "Auch"], format);
-  displayStation("Arenes", ["Colomiers"], format);
+  displayStations('se');
 }
 
 function formatTE(el) {
   return el < 10 ? "0" + el : el;
 }
 
+//document.body.appendChild(document.createTextNode(" @" + formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds())));
 document.title += " @" + formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds());
+
+
