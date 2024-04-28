@@ -71,9 +71,11 @@ function displayStation(station, directions)
       // add departure
       if (right_direction && (ndisp < count_display))
       {
-        t = getTime(dep.stop_date_time.departure_date_time);
-        $li.html(getTime(dep.stop_date_time.departure_date_time) + ' (' +
-                 getTime(dep.stop_date_time.base_departure_date_time) + ') ' +
+	delay = (dep.stop_date_time.departure_date_time != dep.stop_date_time.base_departure_date_time);
+        cr = delay ? "real_delay" : "real_normal";
+        cs = delay ? "scheduled_delay" : "scheduled_normal";
+        $li.html('<span class=' + cr + '>' + getTime(dep.stop_date_time.departure_date_time) + '</span> ' +
+                 '<span class=' + cs + '>' + getTime(dep.stop_date_time.base_departure_date_time) + '</span> ' +
                  getElement(dep.display_informations.direction, 2)[1]);
 
         $ul.append($li);

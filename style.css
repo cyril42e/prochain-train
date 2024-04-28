@@ -1,0 +1,18 @@
+
+.real_normal {
+  font-weight: bold;
+}
+
+.real_delay {
+  font-weight: bold;
+  color: red;
+}
+
+.scheduled_normal {
+  color: grey;
+}
+
+.scheduled_delay {
+  color: grey;
+  text-decoration: line-through;
+}
