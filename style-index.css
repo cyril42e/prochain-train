@@ -1,0 +1,7 @@
+pre {
+  display: inline;
+  margin: 0;
+  white-space: pre-wrap;
+  background-color: lightgray;
+}
+
