@@ -96,5 +96,8 @@ if (now.getHours() < 12) {
   displayStation("Arenes", ["Colomiers"]);
 }
 
-document.title += " @" + now.getHours() + ":" + now.getMinutes();
+function formatTE(el) {
+  return el < 10 ? "0" + el : el;
+}
 
+document.title += " @" + formatTE(now.getHours()) + ":" + formatTE(now.getMinutes());
