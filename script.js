@@ -4,6 +4,37 @@ function getTime(datetime)
   return datetime.replace(/^[0-9]{4}[0-9]{1,2}[0-9]{1,2}T([0-9]{2})([0-9]{2})[0-9]{2}$/, "$1:$2");
 }
 
+function getTime2(datetime)
+{
+  return datetime.replace(/^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}T([0-9]{2}):([0-9]{2}):[0-9]{2}.*$/, "$1:$2");
+}
+
+
+// another API, unofficial, that provides additional information
+async function fetchDepartures2(station_id)
+{
+  // Url to retrieve departures
+  var departuresUrl = 'https://www.garesetconnexions.sncf/schedule-table/Departures/00' + station_id;
+
+  // Call API
+  try {
+    const response = await fetch('https://corsproxy.io/?' + encodeURIComponent(departuresUrl), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Request error: ' + response.status);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    alert('Error : ' + error.message);
+  }
+}
 
 async function fetchDepartures(line_id, station_id, count)
 {
@@ -36,10 +67,10 @@ async function fetchDepartures(line_id, station_id, count)
 }
 
 // Displays departures
-function displayDepartures(navitiaResult, direction_excludes, count, format) {
+function displayDepartures(navitiaResult, direction_excludes, count, format, additionalData, advanced) {
   let ndisp = 0;
   let station = "";
-  results = [];
+  const results = [];
   $.each(navitiaResult.departures, function(i, dep) {
 
     // filter directions
@@ -59,10 +90,20 @@ function displayDepartures(navitiaResult, direction_excludes, count, format) {
       delay = (dep.stop_date_time.departure_date_time != dep.stop_date_time.base_departure_date_time);
       cr = delay ? "real_delay" : "real_normal";
       cs = delay ? "scheduled_delay" : "scheduled_normal";
-      results.push([[getTime(dep.stop_date_time.departure_date_time), cr],
+
+      let ad = additionalData.get(dep.display_informations.headsign);
+      if (ad == null) ad = ["", "", "", ""];
+
+      let result = [[getTime(dep.stop_date_time.departure_date_time), cr],
                     [getTime(dep.stop_date_time.base_departure_date_time), cs],
-                    ["", ""], // track/platform
-                    [dep.display_informations.direction.replace(/ \(.*/g, ""), ""]]);
+                    [ad[0], ""], // track/platform
+                    [dep.display_informations.direction.replace(/ \(.*/g, ""), ""]]
+      if (advanced) {
+        result = result.concat([[getTime2(ad[1]), ""],
+                       [ad[2], ""],
+                       [ad[3], ""]]);
+      }
+      results.push(result);
       ndisp++;
     }
 
@@ -71,6 +112,15 @@ function displayDepartures(navitiaResult, direction_excludes, count, format) {
   });
 
   format(station, results);
+}
+
+// get map of train number with track and departure time
+function extractAdditionalInfos(navitiaResult) {
+  const results = new Map();
+  $.each(navitiaResult, function(i, dep) {
+    results.set(dep.trainNumber, [dep.platform.track, dep.actualTime, dep.informationStatus.trainStatus, dep.informationStatus.delay]);
+  });
+  return results;
 }
 
 function format_list(station, results)
@@ -125,6 +175,7 @@ const line = params.get('line');
 const count_display = params.has('count') ? params.get('count') : 3;
 const count_request = count_display*3;
 const format = params.get('format') == 'list' ? format_list : format_table;
+const advanced = params.get('advanced') == 1 ? true : false;
 
 async function displayStations(slot) {
   // read parameters and store them in an array
@@ -137,9 +188,12 @@ async function displayStations(slot) {
 
   // fetch them all asynchronously but in the same order
   try {
-    const promises = stations.map(station => fetchDepartures(line, station[0], count_request));
-    const results = await Promise.all(promises);
-    results.forEach((data, index) => displayDepartures(data, stations[index][1], count_display, format));
+    const promises1 = stations.map(station => fetchDepartures(line, station[0], count_request));
+    const promises2 = stations.map(station => fetchDepartures2(station[0]));
+    const results1 = await Promise.all(promises1);
+    const results2 = await Promise.all(promises2);
+    const additionalData = results2.map(data => extractAdditionalInfos(data));
+    results1.forEach((data, index) => displayDepartures(data, stations[index][1], count_display, format, additionalData[index], advanced));
   } catch (error) {
     alert('Error: ' + error.message);
   }

@@ -11,7 +11,7 @@
 <h2>Présentation</h2>
 
 <p>Prochain Train utilise l'<a href="https://numerique.sncf.com/startup/api/">API SNCF</a>
-pour afficher de façon compacte les prochains
+pour afficher de façon rapide et compacte les prochains
 départs d'une sélection personnalisée de gares, différenciées entre le matin et le soir.</p>
 
 On peut l'utiliser de différentes manières:
