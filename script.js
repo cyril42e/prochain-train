@@ -20,20 +20,15 @@ function getTime(datetime)
   return datetime.replace(/^[0-9]{4}[0-9]{1,2}[0-9]{1,2}T([0-9]{2})([0-9]{2})[0-9]{2}$/, "$1:$2");
 }
 
-function displayStation(station, directions)
+
+function displayStation(station, directions, format)
 {
   const station_id = getElement(station, 1)[0];
-
-	$(document.body).append('<h3>' + station + ':</h3>');
-//  var ul = document.createElement('ul');
-//  ul.setAttribute('id','lines');
-  //document.getElementById('lists').appendChild(ul);
-  var $ul = $('<ul>');
-  //$ul.setAttribute('id','lines');
-  $(document.body).append($ul);
+  const line_id = "line:SNCF:FR:Line::DDEF5935-0332-4ED5-B499-5C664AF7CF05:";
+  const token = "cbfb30d4-a3b4-472e-9657-6ee4319e0501";
 
   // Url to retrieve departures
-  var departuresUrl = 'https://api.navitia.io/v1/coverage/sncf/stop_areas/stop_area:SNCF:' + station_id + '/lines/line:SNCF:FR:Line::DDEF5935-0332-4ED5-B499-5C664AF7CF05:/departures?count=' + count_request;
+  var departuresUrl = 'https://api.sncf.com/v1/coverage/sncf/stop_areas/stop_area:SNCF:' + station_id + '/lines/' + line_id + '/departures?count=' + count_request;
 
   // Call Navitia API
   $.ajax({
@@ -41,7 +36,7 @@ function displayStation(station, directions)
     url: departuresUrl,
     dataType: 'json',
     headers: {
-      Authorization: 'Basic ' + btoa('cbfb30d4-a3b4-472e-9657-6ee4319e0501')
+      Authorization: 'Basic ' + btoa(token)
     },
     success: displayDepartures,
     error: function(xhr, textStatus, errorThrown) {
@@ -51,13 +46,9 @@ function displayStation(station, directions)
 
   // Displays departures
   function displayDepartures(navitiaResult) {
-    //var $ul = $('ul#lines');
-
     let ndisp = 0;
+    results = [];
     $.each(navitiaResult.departures, function(i, dep) {
-      var $li = $('<li>');
-
-      // dep.stop_point.name
 
       // filter directions
       let right_direction = false;
@@ -74,26 +65,50 @@ function displayStation(station, directions)
 	delay = (dep.stop_date_time.departure_date_time != dep.stop_date_time.base_departure_date_time);
         cr = delay ? "real_delay" : "real_normal";
         cs = delay ? "scheduled_delay" : "scheduled_normal";
-        $li.html('<span class=' + cr + '>' + getTime(dep.stop_date_time.departure_date_time) + '</span> ' +
-                 '<span class=' + cs + '>' + getTime(dep.stop_date_time.base_departure_date_time) + '</span> ' +
-                 getElement(dep.display_informations.direction, 2)[1]);
-
-        $ul.append($li);
-
+        results.push([[getTime(dep.stop_date_time.departure_date_time), cr],
+                      [getTime(dep.stop_date_time.base_departure_date_time), cs],
+                      ["", ""], // track/platform
+                      [getElement(dep.display_informations.direction, 2)[1], ""]]);
         ndisp++;
       }
     });
+
+    format(station, results);
   }
 }
+
+function format_list(station, results)
+{
+  $(document.body).append('<h3>' + station + ':</h3>');
+  var $ul = $('<ul>');
+  $(document.body).append($ul);
+
+  $.each(results, function(i, dep) {
+    var $li = $('<li>');
+
+    s = "";
+    $.each(dep, function(j, entry) {
+      if (entry[1] == "") {
+        s += entry[0] + ' ';
+      } else {
+        s += '<span class=' + entry[1] + '>' + entry[0] + '</span> ';
+      }
+    });
+
+    $li.html(s);
+    $ul.append($li);
+  });
+}
+
 
 const now = new Date(Date.now());
 
 if (now.getHours() < 12) {
-  displayStation("Lycee", ["Matabiau"]);
-  displayStation("Colomiers", ["Arenes"]);
+  displayStation("Lycee", ["Matabiau"], format_list);
+  displayStation("Colomiers", ["Arenes"], format_list);
 } else {
-  displayStation("Matabiau", ["Jourdain", "Auch"]);
-  displayStation("Arenes", ["Colomiers"]);
+  displayStation("Matabiau", ["Jourdain", "Auch"], format_list);
+  displayStation("Arenes", ["Colomiers"], format_list);
 }
 
 function formatTE(el) {
