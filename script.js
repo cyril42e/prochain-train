@@ -32,8 +32,9 @@ function displayStation(station_name, station_id)
     $.each(navitiaResult.departures, function(i, dep) {
       var $li = $('<li>');
 
-			// dep.stop_point.name
-      $li.html(dep.stop_date_time.departure_date_time + ': ' + dep.display_informations.direction);
+      // dep.stop_point.name
+      t = dep.stop_date_time.departure_date_time.replace(/^[0-9]{4}[0-9]{1,2}[0-9]{1,2}T([0-9]{2})([0-9]{2})[0-9]{2}$/, "$1:$2");
+      $li.html(t + ' ' + dep.display_informations.direction);
 
       $ul.append($li);
     });
