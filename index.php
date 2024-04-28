@@ -79,7 +79,7 @@ Pour l'instant l'affichage des voies n'est pas implémenté, car l'information e
 <p>Une clé d'accès personnelle est nécessaire pour accéder à l'API, obtenable gratuitement <a href="https://numerique.sncf.com/startup/api/token-developpeur/">
 sur le site de l'API SNCF</a>. Si vous forkez le projet, s'il vous plait demandez votre propre clé et n'utilisez pas celle de ce site.</p>
 
-<p>Le code source de cet outil sera disponible sur GitHub TODO</p>
+<p>Le code source de cet outil est <a href="https://github.com/cyril42e/prochain-train">disponible sur GitHub</a></p>
 
 </body>
 </html>
