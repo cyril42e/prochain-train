@@ -44,10 +44,12 @@ function displayDepartures(navitiaResult, direction_excludes, count, format) {
 
     // filter directions
     let right_direction = true;
-    for (const excl of direction_excludes.split(';')) {
-      if (dep.display_informations.direction.toLowerCase().indexOf(excl.toLowerCase()) != -1) {
-        right_direction = false;
-        break;
+    if (direction_excludes) {
+      for (const excl of direction_excludes.split(';').filter(r => r !== '')) {
+        if (dep.display_informations.direction.toLowerCase().indexOf(excl.toLowerCase()) != -1) {
+          right_direction = false;
+          break;
+        }
       }
     }
 
