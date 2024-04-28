@@ -84,7 +84,15 @@ function displayStation(station, directions)
   }
 }
 
-displayStation("Matabiau", ["Jourdain", "Auch"]);
-displayStation("Arenes", ["Colomiers"]);
-displayStation("Colomiers", ["Arenes"]);
-displayStation("Lycee", ["Matabiau"]);
+const now = new Date(Date.now());
+
+if (now.getHours() < 12) {
+  displayStation("Lycee", ["Matabiau"]);
+  displayStation("Colomiers", ["Arenes"]);
+} else {
+  displayStation("Matabiau", ["Jourdain", "Auch"]);
+  displayStation("Arenes", ["Colomiers"]);
+}
+
+
+$(document.body).append("Refreshed at " + now.getHours() + ":" + now.getMinutes());
