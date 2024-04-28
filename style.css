@@ -13,6 +13,22 @@
 }
 
 .scheduled_delay {
-  color: grey;
   text-decoration: line-through;
 }
+
+th {
+  text-align: center;
+}
+
+table, td {
+  padding-top: 0px;
+  padding-bottom: 0px;
+}
+
+table, th, td {
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+  border: 1px solid lightgray;
+  border-collapse: collapse;
+}
+

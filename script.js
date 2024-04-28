@@ -100,15 +100,39 @@ function format_list(station, results)
   });
 }
 
+function format_table(station, results)
+{
+  let table = document.getElementById('tabletime');
+
+  let tr = table.insertRow();
+  let th = document.createElement('th');
+  th.setAttribute('colSpan', '4');
+  th.innerHTML = station;
+  tr.appendChild(th);
+
+  $.each(results, function(i, dep) {
+    let tr = table.insertRow();
+
+    $.each(dep, function(j, entry) {
+      let td = tr.insertCell();
+      if (entry[1] != "") td.setAttribute('class', entry[1]);
+      td.appendChild(document.createTextNode(entry[0]));
+    });
+  });
+}
+
 
 const now = new Date(Date.now());
 
+let format = format_list;
+format = format_table;
+
 if (now.getHours() < 12) {
-  displayStation("Lycee", ["Matabiau"], format_list);
-  displayStation("Colomiers", ["Arenes"], format_list);
+  displayStation("Lycee", ["Matabiau"], format);
+  displayStation("Colomiers", ["Arenes"], format);
 } else {
-  displayStation("Matabiau", ["Jourdain", "Auch"], format_list);
-  displayStation("Arenes", ["Colomiers"], format_list);
+  displayStation("Matabiau", ["Jourdain", "Auch"], format);
+  displayStation("Arenes", ["Colomiers"], format);
 }
 
 function formatTE(el) {
