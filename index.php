@@ -8,6 +8,7 @@
 
 <body>
   <table id="tabletime"></table>
+  <table id="test"></table>
 
   <script src="script.js"></script>
 </body>
