@@ -15,6 +15,11 @@ function getElement(station, index)
   return stations.filter(tuple => tuple[index] === station)[0];
 }
 
+function getTime(datetime)
+{
+  return datetime.replace(/^[0-9]{4}[0-9]{1,2}[0-9]{1,2}T([0-9]{2})([0-9]{2})[0-9]{2}$/, "$1:$2");
+}
+
 function displayStation(station, directions)
 {
   const station_id = getElement(station, 1)[0];
@@ -66,8 +71,10 @@ function displayStation(station, directions)
       // add departure
       if (right_direction && (ndisp < count_display))
       {
-        t = dep.stop_date_time.departure_date_time.replace(/^[0-9]{4}[0-9]{1,2}[0-9]{1,2}T([0-9]{2})([0-9]{2})[0-9]{2}$/, "$1:$2");
-        $li.html(t + ' ' + getElement(dep.display_informations.direction, 2)[1]);
+        t = getTime(dep.stop_date_time.departure_date_time);
+        $li.html(getTime(dep.stop_date_time.departure_date_time) + ' (' +
+                 getTime(dep.stop_date_time.base_departure_date_time) + ') ' +
+                 getElement(dep.display_informations.direction, 2)[1]);
 
         $ul.append($li);
 
