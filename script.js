@@ -15,10 +15,11 @@ async function fetchDepartures2(station_id)
 {
   // Url to retrieve departures
   var departuresUrl = 'https://www.garesetconnexions.sncf/schedule-table/Departures/00' + station_id;
+  const cors_proxy = "https://api.allorigins.win/raw?url=";
 
   // Call API
   try {
-    const response = await fetch('https://corsproxy.io/?' + encodeURIComponent(departuresUrl), {
+    const response = await fetch(cors_proxy + encodeURIComponent(departuresUrl), {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
