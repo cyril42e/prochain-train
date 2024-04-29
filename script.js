@@ -237,6 +237,7 @@ const count_display = params.has('count') ? params.get('count') : 3;
 const count_request = count_display*3;
 const format = params.get('format') == 'list' ? format_list : format_table;
 const advanced = params.get('advanced') == 1 ? true : false;
+const invert = params.get('invert') == 1 ? true : false;
 
 async function displayStations(slot) {
   // read parameters and store them in an array
@@ -262,7 +263,7 @@ async function displayStations(slot) {
   }
 }
 
-if (now.getHours() < 12) { // morning
+if (now.getHours() < 12 != invert) { // morning
   displayStations('sm');
 } else {
   displayStations('se');
