@@ -1,15 +1,13 @@
 
-function getTime(datetime)
+function getTimeAPI(datetime)
 {
   return datetime.replace(/^[0-9]{4}[0-9]{1,2}[0-9]{1,2}T([0-9]{2})([0-9]{2})[0-9]{2}$/, "$1:$2");
 }
 
-function getTime2(datetime)
+function getTimeGEC(datetime)
 {
   return datetime.replace(/^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}T([0-9]{2}):([0-9]{2}):[0-9]{2}.*$/, "$1:$2");
 }
-
-
 
 
 // fetch json from official public API
@@ -42,6 +40,7 @@ async function fetchDeparturesAPI(line_id, station_id, count)
     alert('Error : ' + error.message);
   }
 }
+
 
 // fetch json from GEC (GareEtConnexions.sncf)
 // another API, unofficial, that provides additional information
@@ -94,22 +93,16 @@ function displayDepartures(data, direction_excludes, count, format, additionalDa
     // add departure
     if (right_direction && (ndisp < count))
     {
-      delay = (dep.stop_date_time.departure_date_time != dep.stop_date_time.base_departure_date_time);
+      delay = (dep.stop_date_time.departure_date_time != dep.stop_date_time.base_departure_date_time); // could use ad.get("delay") too
       cr = delay ? "real_delay" : "real_normal";
       cs = delay ? "scheduled_delay" : "scheduled_normal";
 
       let ad = additionalData.get(dep.display_informations.headsign);
-      if (ad == null) ad = ["", "", "", ""];
-
-      let result = [[getTime(dep.stop_date_time.departure_date_time), cr],
-                    [getTime(dep.stop_date_time.base_departure_date_time), cs],
-                    [ad[0], ""], // track/platform
-                    [dep.display_informations.direction.replace(/ \(.*/g, ""), ""]]
-      if (advanced) {
-        result = result.concat([[getTime2(ad[1]), ""],
-                       [ad[2], ""],
-                       [ad[3], ""]]);
-      }
+      if (ad == null) ad = new Map([["track", ""]]);
+      const result = [[getTimeAPI(dep.stop_date_time.departure_date_time), cr],
+                      [getTimeAPI(dep.stop_date_time.base_departure_date_time), cs],
+                      [ad.get("track"), ""],
+                      [dep.display_informations.direction.replace(/ \(.*/g, ""), ""]]
       results.push(result);
       ndisp++;
     }
@@ -118,6 +111,7 @@ function displayDepartures(data, direction_excludes, count, format, additionalDa
     station = dep.stop_point.name;
   });
 
+  // prepare download link
   const mergedData = {
     "api.sncf.com": data,
     "garesetconnexions.sncf": additionalData.get("data")
@@ -126,20 +120,69 @@ function displayDepartures(data, direction_excludes, count, format, additionalDa
   const blob = new Blob([jsonString], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
+  // format results
   format(station, url, results);
 }
 
+
+// Display departures with GEC API for comparison purpose
+function displayDeparturesGEC(data, direction_excludes, format) {
+  const results = [];
+  let station = "";
+//  $.each(data, function(key, dep) {
+  for (const [key, dep] of data) {
+    if (key == "data") continue;
+
+    // filter directions
+    let right_direction = true;
+    if (direction_excludes) {
+      for (const excl of direction_excludes.split(';').filter(r => r !== '')) {
+        if (dep.get("dest").toLowerCase().indexOf(excl.toLowerCase()) != -1) {
+          right_direction = false;
+          break;
+        }
+      }
+    }
+
+    if (right_direction) {
+      delay = (dep.get("atime") != dep.get("btime"));
+      //delay = (dep.get("status") != "Ontime" && dep.get("status") != "NORMAL");
+      cr = delay ? "real_delay" : "real_normal";
+      cs = delay ? "scheduled_delay" : "scheduled_normal";
+
+      const result = [[getTimeGEC(dep.get("atime")), cr],
+                      [getTimeGEC(dep.get("btime")), cs],
+                      [dep.get("track"), ""],
+                      [dep.get("dest"), ""],
+                      [dep.get("delay"), ""],
+                      [dep.get("status"), ""]]
+      results.push(result);
+      station = dep.get("station");
+    }
+  }
+
+  format(station, "", results, "GEC");
+}
+
+
 // get map of train number with track and departure time
-function extractAdditionalInfos(data) {
+function extractGECInfos(data) {
   const results = new Map();
   $.each(data, function(i, dep) {
-    results.set(dep.trainNumber, [dep.platform.track, dep.actualTime, dep.informationStatus.trainStatus, dep.informationStatus.delay]);
+    result = new Map([["btime", dep.scheduledTime],
+               ["atime", dep.actualTime],
+               ["track", dep.platform.track],
+               ["dest",  dep.traffic.destination],
+               ["station", dep.uic],
+               ["status", dep.informationStatus.trainStatus],
+               ["delay", dep.informationStatus.delay]]);
+    results.set(dep.trainNumber, result);
   });
   results.set("data", data);
   return results;
 }
 
-function format_list(station, link, results)
+function format_list(station, link, results, suffix = "")
 {
   link_html = ' <a href="' + link + '" download="' + station + '_' + formatDateFile(now) + '.json">[1]</a>';
   $(document.body).append('<h3>' + station + (advanced ? link_html : '') + ':</h3>');
@@ -163,15 +206,15 @@ function format_list(station, link, results)
   });
 }
 
-function format_table(station, link, results)
+function format_table(station, link, results, suffix = "")
 {
-  let table = document.getElementById('tabletime');
+  let table = document.getElementById('tabletime' + suffix);
 
   let tr = table.insertRow(-1);
   let th = document.createElement('th');
   th.setAttribute('colSpan', '4');
   link_html = ' <a href="' + link + '" download="' + station + '_' + formatDateFile(now) + '.json">[1]</a>';
-  th.innerHTML = station + (advanced ? link_html : '');
+  th.innerHTML = station + ((advanced && link != "") ? link_html : '');
   tr.appendChild(th);
 
   $.each(results, function(i, dep) {
@@ -210,8 +253,10 @@ async function displayStations(slot) {
     const promisesGEC = stations.map(station => fetchDeparturesGEC(station[0]));
     const resultsAPI = await Promise.all(promisesAPI);
     const resultsGEC = await Promise.all(promisesGEC);
-    const additionalData = resultsGEC.map(data => extractAdditionalInfos(data));
-    resultsAPI.forEach((data, index) => displayDepartures(data, stations[index][1], count_display, format, additionalData[index], advanced));
+    const dataGEC = resultsGEC.map(data => extractGECInfos(data));
+    resultsAPI.forEach((data, index) => displayDepartures(data, stations[index][1], count_display, format, dataGEC[index], advanced));
+    if (advanced)
+      dataGEC.forEach((data, index) => displayDeparturesGEC(data, stations[index][1], format));
   } catch (error) {
     alert('Error: ' + error.message);
   }
