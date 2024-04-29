@@ -10,34 +10,10 @@ function getTime2(datetime)
 }
 
 
-// another API, unofficial, that provides additional information
-async function fetchDepartures2(station_id)
-{
-  // Url to retrieve departures
-  var departuresUrl = 'https://www.garesetconnexions.sncf/schedule-table/Departures/00' + station_id;
-  const cors_proxy = "https://api.allorigins.win/raw?url=";
 
-  // Call API
-  try {
-    const response = await fetch(cors_proxy + encodeURIComponent(departuresUrl), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
 
-    if (!response.ok) {
-      throw new Error('Request error: ' + response.status);
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    alert('Error : ' + error.message);
-  }
-}
-
-async function fetchDepartures(line_id, station_id, count)
+// fetch json from official public API
+async function fetchDeparturesAPI(line_id, station_id, count)
 {
   const token = "cbfb30d4-a3b4-472e-9657-6ee4319e0501";
   const full_line_id = 'line:SNCF:FR:Line::' + line_id + ':';
@@ -67,12 +43,42 @@ async function fetchDepartures(line_id, station_id, count)
   }
 }
 
+// fetch json from GEC (GareEtConnexions.sncf)
+// another API, unofficial, that provides additional information
+async function fetchDeparturesGEC(station_id)
+{
+  // Url to retrieve departures
+  var departuresUrl = 'https://www.garesetconnexions.sncf/schedule-table/Departures/00' + station_id;
+  const cors_proxy = "https://api.allorigins.win/raw?url=";
+
+  // Call API
+  try {
+    const response = await fetch(cors_proxy + encodeURIComponent(departuresUrl), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Request error: ' + response.status);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    alert('Error : ' + error.message);
+  }
+}
+
+
+
 // Displays departures
-function displayDepartures(navitiaResult, direction_excludes, count, format, additionalData, advanced) {
+function displayDepartures(data, direction_excludes, count, format, additionalData, advanced) {
   let ndisp = 0;
   let station = "";
   const results = [];
-  $.each(navitiaResult.departures, function(i, dep) {
+  $.each(data.departures, function(i, dep) {
 
     // filter directions
     let right_direction = true;
@@ -113,7 +119,7 @@ function displayDepartures(navitiaResult, direction_excludes, count, format, add
   });
 
   const mergedData = {
-    "api.sncf.com": navitiaResult,
+    "api.sncf.com": data,
     "garesetconnexions.sncf": additionalData.get("data")
   };
   const jsonString = JSON.stringify(mergedData, null, 2);
@@ -124,12 +130,12 @@ function displayDepartures(navitiaResult, direction_excludes, count, format, add
 }
 
 // get map of train number with track and departure time
-function extractAdditionalInfos(navitiaResult) {
+function extractAdditionalInfos(data) {
   const results = new Map();
-  $.each(navitiaResult, function(i, dep) {
+  $.each(data, function(i, dep) {
     results.set(dep.trainNumber, [dep.platform.track, dep.actualTime, dep.informationStatus.trainStatus, dep.informationStatus.delay]);
   });
-  results.set("data", navitiaResult);
+  results.set("data", data);
   return results;
 }
 
@@ -200,12 +206,12 @@ async function displayStations(slot) {
 
   // fetch them all asynchronously but in the same order
   try {
-    const promises1 = stations.map(station => fetchDepartures(line, station[0], count_request));
-    const promises2 = stations.map(station => fetchDepartures2(station[0]));
-    const results1 = await Promise.all(promises1);
-    const results2 = await Promise.all(promises2);
-    const additionalData = results2.map(data => extractAdditionalInfos(data));
-    results1.forEach((data, index) => displayDepartures(data, stations[index][1], count_display, format, additionalData[index], advanced));
+    const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[0], count_request));
+    const promisesGEC = stations.map(station => fetchDeparturesGEC(station[0]));
+    const resultsAPI = await Promise.all(promisesAPI);
+    const resultsGEC = await Promise.all(promisesGEC);
+    const additionalData = resultsGEC.map(data => extractAdditionalInfos(data));
+    resultsAPI.forEach((data, index) => displayDepartures(data, stations[index][1], count_display, format, additionalData[index], advanced));
   } catch (error) {
     alert('Error: ' + error.message);
   }
