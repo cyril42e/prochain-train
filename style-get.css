@@ -38,3 +38,7 @@ table, th, td {
   border-collapse: collapse;
 }
 
+a {
+  text-decoration: none;
+  font-weight: normal;
+}

@@ -112,7 +112,15 @@ function displayDepartures(navitiaResult, direction_excludes, count, format, add
     station = dep.stop_point.name;
   });
 
-  format(station, results);
+  const mergedData = {
+    "api.sncf.com": navitiaResult,
+    "garesetconnexions.sncf": additionalData.get("data")
+  };
+  const jsonString = JSON.stringify(mergedData, null, 2);
+  const blob = new Blob([jsonString], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  format(station, url, results);
 }
 
 // get map of train number with track and departure time
@@ -121,12 +129,14 @@ function extractAdditionalInfos(navitiaResult) {
   $.each(navitiaResult, function(i, dep) {
     results.set(dep.trainNumber, [dep.platform.track, dep.actualTime, dep.informationStatus.trainStatus, dep.informationStatus.delay]);
   });
+  results.set("data", navitiaResult);
   return results;
 }
 
-function format_list(station, results)
+function format_list(station, link, results)
 {
-  $(document.body).append('<h3>' + station + ':</h3>');
+  link_html = ' <a href="' + link + '" download="' + station + '_' + formatDateFile(now) + '.json">[1]</a>';
+  $(document.body).append('<h3>' + station + (advanced ? link_html : '') + ':</h3>');
   var $ul = $('<ul>');
   $(document.body).append($ul);
 
@@ -147,14 +157,15 @@ function format_list(station, results)
   });
 }
 
-function format_table(station, results)
+function format_table(station, link, results)
 {
   let table = document.getElementById('tabletime');
 
   let tr = table.insertRow(-1);
   let th = document.createElement('th');
   th.setAttribute('colSpan', '4');
-  th.innerHTML = station;
+  link_html = ' <a href="' + link + '" download="' + station + '_' + formatDateFile(now) + '.json">[1]</a>';
+  th.innerHTML = station + (advanced ? link_html : '');
   tr.appendChild(th);
 
   $.each(results, function(i, dep) {
@@ -170,7 +181,7 @@ function format_table(station, results)
 
 const now = new Date(Date.now());
 
-let query = window.location.search;
+const query = window.location.search;
 const params = new URLSearchParams(query);
 const line = params.get('line');
 const count_display = params.has('count') ? params.get('count') : 3;
@@ -209,7 +220,13 @@ if (now.getHours() < 12) { // morning
 function formatTE(el) {
   return el < 10 ? "0" + el : el;
 }
+function formatTime(time) {
+  return formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds());
+}
+function formatDateFile(date) {
+  return date.getFullYear() + "-" + formatTE(date.getMonth()+1) + "-" + formatTE(date.getDate()) + "_" +
+         formatTE(date.getHours()) + "-" + formatTE(date.getMinutes()) + "-" + formatTE(date.getSeconds());
+}
 
-document.body.prepend(document.createTextNode("Prochains trains à " + formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds())));
-
+document.body.prepend(document.createTextNode("Prochains trains à " + formatTime(now)));
 
