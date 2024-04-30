@@ -1,3 +1,6 @@
+///##############################
+/// Tools
+///##############################
 
 function getTimeAPI(datetime)
 {
@@ -9,6 +12,27 @@ function getTimeGEC(datetime)
   return datetime.replace(/^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}T([0-9]{2}):([0-9]{2}):[0-9]{2}.*$/, "$1:$2");
 }
 
+function formatTE(el) { // format Time Element
+  return el < 10 ? "0" + el : el;
+}
+
+function formatTime(time) {
+  return formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds());
+}
+
+function formatDateFile(date) {
+  return date.getFullYear() + "-" + formatTE(date.getMonth()+1) + "-" + formatTE(date.getDate()) + "_" +
+         formatTE(date.getHours()) + "-" + formatTE(date.getMinutes()) + "-" + formatTE(date.getSeconds());
+}
+
+function convertTimeGECtoAPI(datetime) {
+  return datetime.replace(/[+-][0-9]{2}:[0-9]{2}$/, "").replace(/\-/g, "").replace(/:/g, "");
+}
+
+
+///##############################
+/// Fetch json
+///##############################
 
 // fetch json from official public API
 async function fetchDeparturesAPI(line_id, station_id, count)
@@ -34,8 +58,8 @@ async function fetchDeparturesAPI(line_id, station_id, count)
       throw new Error('Request error: ' + response.status);
     }
 
-    const data = await response.json();
-    return data;
+    const json_data = await response.json();
+    return json_data;
   } catch (error) {
     alert('Error : ' + error.message);
   }
@@ -63,27 +87,134 @@ async function fetchDeparturesGEC(station_id)
       throw new Error('Request error: ' + response.status);
     }
 
-    const data = await response.json();
-    return data;
+    const json_data = await response.json();
+    return json_data;
   } catch (error) {
     alert('Error : ' + error.message);
   }
 }
 
 
+///##############################
+/// Extract infos from json
+///##############################
+
+// get map of train number with useful infos
+function extractAPIInfos(json_data) {
+  const results = new Map();
+  $.each(json_data.departures, function(i, dep) {
+    result = new Map([["btime", dep.stop_date_time.base_departure_date_time],
+                      ["atime", dep.stop_date_time.departure_date_time],
+                      ["dest", dep.display_informations.direction.replace(/ \(.*/g, "")],
+                      ["station", dep.stop_point.name]]);
+    results.set(dep.display_informations.headsign, result);
+  });
+  return [results, json_data];
+}
+
+
+// get map of train number with useful infos
+function extractGECInfos(json_data) {
+  const results = new Map();
+  $.each(json_data, function(i, dep) {
+    result = new Map([["btime", dep.scheduledTime],
+                      ["atime", dep.actualTime],
+                      ["track", dep.platform.track],
+                      ["dest",  dep.traffic.destination],
+                      ["station", dep.uic],
+                      ["status", dep.informationStatus.trainStatus],
+                      ["delay", dep.informationStatus.delay]]);
+    results.set(dep.trainNumber, result);
+  });
+  return [results, json_data];
+}
+
+
+///##############################
+/// Merge infos from json
+///##############################
+
+function mergeInfos(dataAPI, dataGEC) {
+  function mergeContent(contentAPI, contentGEC) {
+    result = contentAPI;
+    for (const key of ["track", "status", "delay"]) {
+      result.set(key, contentGEC.get(key));
+    }
+    return result;
+  }
+
+  function compareContent(content1, content2) {
+    return content1.get("atime").localeCompare(content2.get("atime"));
+  }
+
+  const mergedMap = new Map();
+  const jsonDataMap = new Map();
+  const listDest = new Set();
+  let station = "";
+
+  // browse dataAPI and merge content if in both (and build list of destinations)
+  for (const [trainNumber, contentAPI] of dataAPI[0].entries()) {
+    listDest.add(contentAPI.get("dest"));
+    station = contentAPI.get("station");
+    if (dataGEC[0].has(trainNumber)) {
+      const contentGEC = dataGEC[0].get(trainNumber);
+      const mergedContent = mergeContent(contentAPI, contentGEC);
+      mergedMap.set(trainNumber, mergedContent);
+    } else {
+      mergedMap.set(trainNumber, contentAPI);
+    }
+  }
+
+  // browse dataGEC for orphans (that have same destination than in API), and add them
+  for (const [trainNumber, contentGEC] of dataGEC[0].entries()) {
+    if (!dataAPI[0].has(trainNumber) && listDest.has(contentGEC.get("dest"))) {
+      result = new Map();
+      for (const [key, value] of contentGEC) {
+        if (key == "btime" || key == "atime") {
+          result.set(key, convertTimeGECtoAPI(value));
+        } else if (key == "station") {
+          result.set(key, station);
+        } else {
+          result.set(key, value);
+        }
+      }
+      mergedMap.set(trainNumber, result);
+    }
+  }
+
+  // resort by date
+  const mergedArray = Array.from(mergedMap.entries());
+  mergedArray.sort(([trainNumber1, content1], [trainNumber2, content2]) => {
+    return compareContent(content1, content2);
+  });
+  const sortedMergedMap = new Map(mergedArray);
+
+  // merge json_data
+  const mergedJsonData = {
+    "api.sncf.com": dataAPI[1],
+    "garesetconnexions.sncf": dataGEC[1]
+  };
+
+  return [sortedMergedMap, mergedJsonData];
+}
+
+
+///##############################
+/// Display departure infos
+///##############################
 
 // Displays departures
-function displayDepartures(data, direction_excludes, count, format, additionalData, advanced) {
+function displayDepartures(data, direction_excludes, count, format, advanced) {
   let ndisp = 0;
   let station = "";
   const results = [];
-  $.each(data.departures, function(i, dep) {
 
+  for (const [key, dep] of data[0]) {
     // filter directions
     let right_direction = true;
     if (direction_excludes) {
       for (const excl of direction_excludes.split(';').filter(r => r !== '')) {
-        if (dep.display_informations.direction.toLowerCase().indexOf(excl.toLowerCase()) != -1) {
+        if (dep.get("dest").toLowerCase().indexOf(excl.toLowerCase()) != -1) {
           right_direction = false;
           break;
         }
@@ -93,30 +224,25 @@ function displayDepartures(data, direction_excludes, count, format, additionalDa
     // add departure
     if (right_direction && (ndisp < count))
     {
-      delay = (dep.stop_date_time.departure_date_time != dep.stop_date_time.base_departure_date_time); // could use ad.get("delay") too
-      cr = delay ? "real_delay" : "real_normal";
-      cs = delay ? "scheduled_delay" : "scheduled_normal";
+      delay = (dep.get("atime") != dep.get("btime")); // could use ad.get("delay") too
+      suppressed = ((dep.get("status") || "").toLowerCase().indexOf("suppress") != -1);
+      cr = suppressed ? "real_suppressed" : (delay ? "real_delay" : "real_normal");
+      cs = (suppressed || delay) ? "scheduled_delay" : "scheduled_normal";
 
-      let ad = additionalData.get(dep.display_informations.headsign);
-      if (ad == null) ad = new Map([["track", ""]]);
-      const result = [[getTimeAPI(dep.stop_date_time.departure_date_time), cr],
-                      [getTimeAPI(dep.stop_date_time.base_departure_date_time), cs],
-                      [ad.get("track"), ""],
-                      [dep.display_informations.direction.replace(/ \(.*/g, ""), ""]]
+      const result = [[getTimeAPI(dep.get("atime")), cr],
+                      [getTimeAPI(dep.get("btime")), cs],
+                      [dep.get("track") || "", ""],
+                      [dep.get("dest"), ""]];
       results.push(result);
       ndisp++;
     }
 
     // get full station name
-    station = dep.stop_point.name;
-  });
+    station = dep.get("station");
+  }
 
   // prepare download link
-  const mergedData = {
-    "api.sncf.com": data,
-    "garesetconnexions.sncf": additionalData.get("data")
-  };
-  const jsonString = JSON.stringify(mergedData, null, 2);
+  const jsonString = JSON.stringify(data[1], null, 2);
   const blob = new Blob([jsonString], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
@@ -129,10 +255,7 @@ function displayDepartures(data, direction_excludes, count, format, additionalDa
 function displayDeparturesGEC(data, direction_excludes, format) {
   const results = [];
   let station = "";
-//  $.each(data, function(key, dep) {
-  for (const [key, dep] of data) {
-    if (key == "data") continue;
-
+  for (const [key, dep] of data[0]) {
     // filter directions
     let right_direction = true;
     if (direction_excludes) {
@@ -146,9 +269,9 @@ function displayDeparturesGEC(data, direction_excludes, format) {
 
     if (right_direction) {
       delay = (dep.get("atime") != dep.get("btime"));
-      //delay = (dep.get("status") != "Ontime" && dep.get("status") != "NORMAL");
-      cr = delay ? "real_delay" : "real_normal";
-      cs = delay ? "scheduled_delay" : "scheduled_normal";
+      suppressed = ((dep.get("status") || "").toLowerCase().indexOf("suppress") != -1);
+      cr = suppressed ? "real_suppressed" : (delay ? "real_delay" : "real_normal");
+      cs = (suppressed || delay) ? "scheduled_delay" : "scheduled_normal";
 
       const result = [[getTimeGEC(dep.get("atime")), cr],
                       [getTimeGEC(dep.get("btime")), cs],
@@ -165,22 +288,9 @@ function displayDeparturesGEC(data, direction_excludes, format) {
 }
 
 
-// get map of train number with track and departure time
-function extractGECInfos(data) {
-  const results = new Map();
-  $.each(data, function(i, dep) {
-    result = new Map([["btime", dep.scheduledTime],
-               ["atime", dep.actualTime],
-               ["track", dep.platform.track],
-               ["dest",  dep.traffic.destination],
-               ["station", dep.uic],
-               ["status", dep.informationStatus.trainStatus],
-               ["delay", dep.informationStatus.delay]]);
-    results.set(dep.trainNumber, result);
-  });
-  results.set("data", data);
-  return results;
-}
+///##############################
+/// Format functions
+///##############################
 
 function format_list(station, link, results, suffix = "")
 {
@@ -228,13 +338,18 @@ function format_table(station, link, results, suffix = "")
   });
 }
 
+
+///##############################
+/// Main
+///##############################
+
 const now = new Date(Date.now());
 
 const query = window.location.search;
 const params = new URLSearchParams(query);
 const line = params.get('line');
 const count_display = params.has('count') ? params.get('count') : 3;
-const count_request = count_display*3;
+const count_request = count_display*4;
 const format = params.get('format') == 'list' ? format_list : format_table;
 const advanced = params.get('advanced') == 1 ? true : false;
 const invert = params.get('invert') == 1 ? true : false;
@@ -254,30 +369,24 @@ async function displayStations(slot) {
     const promisesGEC = stations.map(station => fetchDeparturesGEC(station[0]));
     const resultsAPI = await Promise.all(promisesAPI);
     const resultsGEC = await Promise.all(promisesGEC);
-    const dataGEC = resultsGEC.map(data => extractGECInfos(data));
-    resultsAPI.forEach((data, index) => displayDepartures(data, stations[index][1], count_display, format, dataGEC[index], advanced));
+    const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
+    const all_dataGEC = resultsGEC.map(json_data => extractGECInfos(json_data));
+    const all_dataMerged = all_dataAPI.map((dataAPI, index) => {
+      const dataGEC = all_dataGEC[index];
+      return mergeInfos(dataAPI, dataGEC);
+    });
+    all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][1], count_display, format, advanced));
     if (advanced)
-      dataGEC.forEach((data, index) => displayDeparturesGEC(data, stations[index][1], format));
+      all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null, format));
   } catch (error) {
     alert('Error: ' + error.message);
   }
 }
 
-if (now.getHours() < 12 != invert) { // morning
-  displayStations('sm');
+if (now.getHours() < 12 != invert) {
+  displayStations('sm'); // morning
 } else {
-  displayStations('se');
-}
-
-function formatTE(el) {
-  return el < 10 ? "0" + el : el;
-}
-function formatTime(time) {
-  return formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds());
-}
-function formatDateFile(date) {
-  return date.getFullYear() + "-" + formatTE(date.getMonth()+1) + "-" + formatTE(date.getDate()) + "_" +
-         formatTE(date.getHours()) + "-" + formatTE(date.getMinutes()) + "-" + formatTE(date.getSeconds());
+  displayStations('se'); // evening
 }
 
 document.body.prepend(document.createTextNode("Prochains trains à " + formatTime(now)));

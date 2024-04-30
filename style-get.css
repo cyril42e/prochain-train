@@ -16,6 +16,11 @@
   text-decoration: line-through;
 }
 
+.real_suppressed {
+  text-decoration: line-through;
+  color: red;
+}
+
 table {
   margin-top: 0.3em;
 
