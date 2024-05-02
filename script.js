@@ -140,6 +140,9 @@ function mergeInfos(dataAPI, dataGEC) {
     for (const key of ["track", "status", "delay"]) {
       result.set(key, contentGEC.get(key));
     }
+    if (contentGEC.get("track") == "") {
+      result.set("track", "?");
+    }
     return result;
   }
 
