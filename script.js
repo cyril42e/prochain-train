@@ -100,7 +100,7 @@ async function fetchWeather(lat, lon)
 {
   // Url to retrieve departures
   const token = "__Wj7dVSTjV9YGu1guveLyDq0g7S7TfTjaHBTPTpO0kj8__";
-  rainUrl = 'https://webservice.meteofrance.com/rain/?lat=' + lat + '&lon=' + lon + '&token=' + token;
+  rainUrl = 'https://webservice.meteofrance.com/v3/rain/?lat=' + lat + '&lon=' + lon + '&token=' + token;
 
   // Call API
   try {
@@ -160,9 +160,9 @@ function extractGECInfos(json_data) {
 
 // get vector of rain forecast
 function extractWeatherInfos(json_data) {
-  const results = (json_data.position.rain_product_available != 1)
+  const results = (json_data.properties.rain_product_available != 1)
     ? [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    : json_data.forecast.map(fc => fc.rain);
+    : json_data.properties.forecast.map(fc => fc.rain_intensity);
   return [results, json_data];
 }
 
