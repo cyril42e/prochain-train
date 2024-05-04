@@ -95,6 +95,34 @@ async function fetchDeparturesGEC(station_id)
 }
 
 
+// fetch weather json from MeteoFrance
+async function fetchWeather(lat, lon)
+{
+  // Url to retrieve departures
+  const token = "__Wj7dVSTjV9YGu1guveLyDq0g7S7TfTjaHBTPTpO0kj8__";
+  rainUrl = 'https://webservice.meteofrance.com/rain/?lat=' + lat + '&lon=' + lon + '&token=' + token;
+
+  // Call API
+  try {
+    const response = await fetch(rainUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Request error: ' + response.status);
+    }
+
+    const json_data = await response.json();
+    return json_data;
+  } catch (error) {
+    alert('Error : ' + error.message);
+  }
+}
+
+
 ///##############################
 /// Extract infos from json
 ///##############################
@@ -126,6 +154,15 @@ function extractGECInfos(json_data) {
                       ["delay", dep.informationStatus.delay]]);
     results.set(dep.trainNumber, result);
   });
+  return [results, json_data];
+}
+
+
+// get vector of rain forecast
+function extractWeatherInfos(json_data) {
+  const results = (json_data.position.rain_product_available != 1)
+    ? [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    : json_data.forecast.map(fc => fc.rain);
   return [results, json_data];
 }
 
@@ -335,10 +372,46 @@ function format_table(station, link, results, suffix = "")
 
     $.each(dep, function(j, entry) {
       let td = tr.insertCell();
-      if (entry[1] != "") td.setAttribute('class', entry[1]);
+      if (entry[1] != "")
+        td.setAttribute('class', entry[1]);
+      else if (j == 3)
+        td.setAttribute('class', 'truncate');
       td.appendChild(document.createTextNode(entry[0]));
     });
   });
+}
+
+///##############################
+/// Display weather
+///##############################
+
+function displayWeather(data)
+{
+  const colormap = { 0: "white", 1: "#f6f7d5", 2:"#bfe1f7", 3:"#81a4f7", 4:"blue" };
+  let table = document.getElementById('tabletime');
+
+  let tr = table.insertRow(-1);
+  let td = document.createElement('td');
+  td.setAttribute('colSpan', '4');
+  td.setAttribute('id', 'rain_container');
+  let array = document.createElement("table");
+  array.setAttribute('id', 'rain');
+  let row = document.createElement("tr");
+
+  for (const [i, value] of data[0].entries()) {
+    let td = document.createElement("td");
+    //let text = document.createTextNode("x");
+    //td.appendChild(text);
+    if (i >= 6) {
+      td.setAttribute('colSpan', '2');
+    }
+    td.setAttribute('bgcolor', colormap[value]);
+    row.appendChild(td);
+  }
+
+  array.appendChild(row);
+  td.appendChild(array);
+  table.appendChild(td);
 }
 
 
@@ -370,6 +443,7 @@ async function displayStations(slot) {
   try {
     const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[0], count_request));
     const promisesGEC = stations.map(station => fetchDeparturesGEC(station[0]));
+    const promiseWeather = fetchWeather(43.611206, 1.453616); // FIXME coords
     const resultsAPI = await Promise.all(promisesAPI);
     const resultsGEC = await Promise.all(promisesGEC);
     const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
@@ -381,6 +455,10 @@ async function displayStations(slot) {
     all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][1], count_display, format, advanced));
     if (advanced)
       all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null, format));
+
+    const resultWeather = await promiseWeather;
+    const dataWeather = extractWeatherInfos(resultWeather);
+    displayWeather(dataWeather);
   } catch (error) {
     alert('Error: ' + error.message);
   }
@@ -391,6 +469,8 @@ if (now.getHours() < 12 != invert) {
 } else {
   displayStations('se'); // evening
 }
+
+//displayWeather([0,1,2,3,4,1,2,3,4]);
 
 document.body.prepend(document.createTextNode("Prochains trains à " + formatTime(now)));
 

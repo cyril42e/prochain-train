@@ -23,9 +23,25 @@
 
 table {
   margin-top: 0.3em;
-
 }
 
+table#tabletime {
+  width: 21em;
+}
+
+table#tabletime td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+table#tabletime > tbody > tr > td:not(.truncate) {
+  width: 1px;
+}
+
+table#tabletime td.truncate {
+  max-width: 1px;
+}
 th {
   text-align: center;
   background-color: lightgray;
@@ -46,4 +62,22 @@ table, th, td {
 a {
   text-decoration: none;
   font-weight: normal;
+}
+
+td#rain_container {
+  margin: 0px;
+  padding: 0px;
+}
+
+table#rain {
+  width: 100%;
+  height: 1.5em;
+  margin: 0px;
+  padding: 0px;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+table#rain td {
+//  width: 12.5%;
 }
