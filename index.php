@@ -12,7 +12,8 @@
 
 <p>Prochain Train utilise l'<a href="https://numerique.sncf.com/startup/api/">API SNCF</a>
 pour afficher de façon rapide et compacte les prochains
-départs d'une sélection personnalisée de gares, différenciées entre le matin et le soir.</p>
+départs d'une sélection personnalisée de gares, différenciées entre le matin et le soir.
+Il utilise aussi l'API de MétéoFrance pour afficher les prévisions de pluie dans l'heure.</p>
 
 On peut l'utiliser de différentes manières:
 <ul>
@@ -24,13 +25,13 @@ On peut l'utiliser de différentes manières:
 <h2>Exemple</h2>
 
 <p>J'utilise personnellement quotidiennement
-<a href="get.php?line=DDEF5935-0332-4ED5-B499-5C664AF7CF05&sm1=87611921&sm1x=jourdain;auch&sm2=87611467&sm2x=jourdain;auch&se1=87611004&se2=87446179&se2x=matabiau&count=4&format=table">cette URL</a>:
-<pre>http://crteknologies.fr/tools/prochain-train/get.php?line=DDEF5935-0332-4ED5-B499-5C664AF7CF05&sm1=87611921&sm1x=jourdain;auch&sm2=87611467&sm2x=jourdain;auch&se1=87611004&se2=87446179&se2x=matabiau&count=4&format=table</pre>
+<a href="get.php?line=DDEF5935-0332-4ED5-B499-5C664AF7CF05&sm1=87611921&sm1x=jourdain;auch&sm2=87611467&sm2x=jourdain;auch&rcm=43.616294,1.314077&se1=87611004&se2=87446179&se2x=matabiau&rce=43.611301,1.453561&count=4&format=table">cette URL</a>:
+<pre>https://crteknologies.fr/tools/prochain-train/get.php?line=DDEF5935-0332-4ED5-B499-5C664AF7CF05&sm1=87611921&sm1x=jourdain;auch&sm2=87611467&sm2x=jourdain;auch&rcm=43.616294,1.314077&se1=87611004&se2=87446179&se2x=matabiau&rce=43.611301,1.453561&count=4&format=table</pre>
 </p>
 
 L'URL se decompose ainsi:
 <ul>
-  <li><pre>http://crteknologies.fr/tools/prochain-train/get.php</pre> : l'URL du service sur ce site.</li>
+  <li><pre>https://crteknologies.fr/tools/prochain-train/get.php</pre> : l'URL du service sur ce site.</li>
   <li><pre>line=DDEF5935-0332-4ED5-B499-5C664AF7CF05</pre> : l'identifiant de la ligne SNCF à suivre (ici Toulouse-Auch).</li>
   <li><pre>sm1=87611921</pre> : l'identifiant de la première station à suivre le <b>matin</b> (StationMorning1) (ici Colomiers Lycée International).</li>
   <li><pre>sm1x=jourdain;auch</pre> : une liste de chaines de caractères séparées par point virgule, servant à exclure les trains dont la
@@ -40,11 +41,13 @@ L'URL se decompose ainsi:
   <li><pre>sm2x=jourdain;auch</pre> : la liste d'exclusions pour cette seconde gare (je pourrais également exclure Matabiau afin de ne pas avoir
     en double avec la première gare les trains qui vont au même endroit, mais seulement les trains supplémentaires qui ne circulent que entre
     Colomiers et Arènes, mais cela est risqué car quand les trains changent de départ ils n'apparaitraient nulle part).</li>
+  <li><pre>rcm=43.616294,1.314077</pre> : les coordonnées par défaut pour les prévisions de pluie le matin (Rain Coordinates Morning).</li>
   <li><pre>se1=87611004</pre> : l'identifiant de la première station à suivre le <b>soir</b> (StationEvening1) (ici Toulouse Matabiau).
     Pas besoin de liste d'exclusion dans ce cas car c'est le départ de la ligne.</li>
   <li><pre>se2=87446179</pre> : l'identifiant d'une seconde gare à suivre le soir (ici Saint-Cyprien Arènes).</li>
   <li><pre>se2x=matabiau;jourdain;auch</pre> : la liste d'exclusions pour cette seconde gare (même remarque que précédemment
     sur la possibilité d'ajouter "jourdain;auch" pour ne pas avoir les mêmes trains que l'autre gare).</li>
+  <li><pre>rce=43.611301,1.453561</pre> : les coordonnées par défaut pour les prévisions de pluie le soir (Rain Coordinates Evening).</li>
   <li><pre>count=4</pre> : affichage des quatre prochains départs pour chaque gare.</li>
   <li><pre>format=table</pre> : affichage des départs sous forme de tableau (autres choix: <pre>liste</pre>).</li>
 </ul>
@@ -67,6 +70,13 @@ L'URL se decompose ainsi:
 <p>Ne garder que la valeur numérique, le reste est ajouté.</p>
 
 <p><pre>https://www.garesetconnexions.sncf/fr/gares-services</pre> (chercher le champ <pre>data-uic=</pre> et enlever les deux zéros devant).</p>
+
+<h3>Trouver les coordonnées pour les prévisions de pluie</h3>
+
+<p>Les coordonnées doivent être fournies dans l'URL pour ne pas avoir à attendre le téléchargement des horaires de l'API SNCF
+pour pouvoir récupérer les coordonnées de la gare avant de lancer la requête sur MétéoFrance (elles se font en parallèle).
+Cela permet également de choisir d'autres coordonnées, par exemple plus proches du domicile ou du lieu de travail.
+Elles peuvent par exemple être obtenues dans votre site de cartographie préféré.</p>
 
 <h2>Explications techniques</h2>
 

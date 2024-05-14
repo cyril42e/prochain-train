@@ -429,8 +429,10 @@ const count_request = count_display*4;
 const format = params.get('format') == 'list' ? format_list : format_table;
 const advanced = params.get('advanced') == 1 ? true : false;
 const invert = params.get('invert') == 1 ? true : false;
+const rcm = params.get('rcm').split(',');
+const rce = params.get('rce').split(',');
 
-async function displayStations(slot) {
+async function displayStations(slot, rc) {
   // read parameters and store them in an array
   let i = 1;
   let stations = [];
@@ -443,7 +445,7 @@ async function displayStations(slot) {
   try {
     const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[0], count_request));
     const promisesGEC = stations.map(station => fetchDeparturesGEC(station[0]));
-    const promiseWeather = fetchWeather(43.611206, 1.453616); // FIXME coords
+    const promiseWeather = fetchWeather(rc[0], rc[1]);
     const resultsAPI = await Promise.all(promisesAPI);
     const resultsGEC = await Promise.all(promisesGEC);
     const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
@@ -465,9 +467,9 @@ async function displayStations(slot) {
 }
 
 if (now.getHours() < 12 != invert) {
-  displayStations('sm'); // morning
+  displayStations('sm', rcm); // morning
 } else {
-  displayStations('se'); // evening
+  displayStations('se', rce); // evening
 }
 
 //displayWeather([0,1,2,3,4,1,2,3,4]);
