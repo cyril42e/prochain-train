@@ -78,6 +78,15 @@ pour pouvoir récupérer les coordonnées de la gare avant de lancer la requête
 Cela permet également de choisir d'autres coordonnées, par exemple plus proches du domicile ou du lieu de travail.
 Elles peuvent par exemple être obtenues dans votre site de cartographie préféré.</p>
 
+<p>Les coordonnées fournies ne sont cependant que des valeurs de secours, car la page va demander votre position courante
+si elle est disponible. Depuis un ordinateur, cette position sera peu précise car obtenue par l'IP de votre connexion internet,
+mais sera aussi trop lente et il se rabattra sur les valeurs de secours. Sur un smartphone, il faut avoir activé le positionnement,
+et autoriser la page à y accéder. Seul le code exécuté sur votre appareil a accès à ces coordonnées, pas le serveur, il n'y
+a donc aucun problème de confidentialité (mais l'API de MétéoFrance y a accès).</p>
+
+<p>La dernière ligne précise quelles coordonnées ont été utilisées, "def" pour le valeurs de secours par défaut, et "cur"
+pour les valeurs courantes. Un lien permet également de visualiser ces coordonnées.</p>
+
 <h2>Explications techniques</h2>
 
 <p>L'<a href="https://numerique.sncf.com/startup/api/">API</a> officielle de la SNCF est exploitée, notamment la requête "departures" :

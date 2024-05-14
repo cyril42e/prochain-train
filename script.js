@@ -94,11 +94,38 @@ async function fetchDeparturesGEC(station_id)
   }
 }
 
+// fetch coordinates if available
+function fetchCoords()
+{
+  return new Promise((resolve, reject) => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 2000 });
+    } else {
+      reject(new Error("Geolocation API is not supported by this browser."));
+    }
+  });
+}
 
 // fetch weather json from MeteoFrance
 async function fetchWeather(lat, lon)
 {
-  // Url to retrieve departures
+  // get coordinates first
+  let d = document.getElementById('coords');
+  d.append(document.createTextNode("Pluie 1h @"));
+  try {
+    const position = await fetchCoords();
+    lat = position.coords.latitude;
+    lon = position.coords.longitude;
+    d.append(document.createTextNode(`cur `));
+  } catch (error) {
+    d.append(document.createTextNode("def" + (advanced ? `(${error.code}) ` : " ")));
+  }
+  let a = document.createElement('a');
+  a.href = `https://www.google.fr/maps/search/?api=1&query=${lat},${lon}`;
+  a.appendChild(document.createTextNode(`${lat},${lon}`));
+  d.append(a);
+
+  // Url to retrieve weather
   const token = "__Wj7dVSTjV9YGu1guveLyDq0g7S7TfTjaHBTPTpO0kj8__";
   rainUrl = 'https://webservice.meteofrance.com/v3/rain/?lat=' + lat + '&lon=' + lon + '&token=' + token;
 
