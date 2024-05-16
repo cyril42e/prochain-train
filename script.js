@@ -164,6 +164,12 @@ function extractAPIInfos(json_data) {
                       ["station", dep.stop_point.name]]);
     results.set(dep.display_informations.headsign, result);
   });
+  $.each(json_data.disruptions, function(i, dis) {
+    const trainNumber = dis.impacted_objects[0].pt_object.trip.name;
+    if (results.has(trainNumber)) {
+      results.get(trainNumber).set("disruption", dis.messages[0].text);
+    }
+  });
   return [results, json_data];
 }
 
@@ -299,7 +305,10 @@ function displayDepartures(data, direction_excludes, count, format, advanced) {
       const result = [[getTimeAPI(dep.get("atime")), cr],
                       [getTimeAPI(dep.get("btime")), cs],
                       [dep.get("track") || "", ""],
-                      [dep.get("dest"), ""]];
+                      [dep.get("dest"), "truncate"]];
+      if (dep.has("disruption")) {
+        result.push(["(" + dep.get("disruption") + ")", "disruption"]);
+      }
       results.push(result);
       ndisp++;
     }
@@ -398,11 +407,13 @@ function format_table(station, link, results, suffix = "")
     let tr = table.insertRow(-1);
 
     $.each(dep, function(j, entry) {
+      if (entry[1] == "disruption")
+        tr = table.insertRow(-1);
       let td = tr.insertCell();
+      if (entry[1] == "disruption")
+        td.setAttribute('colSpan', '4')
       if (entry[1] != "")
         td.setAttribute('class', entry[1]);
-      else if (j == 3)
-        td.setAttribute('class', 'truncate');
       td.appendChild(document.createTextNode(entry[0]));
     });
   });

@@ -59,6 +59,12 @@ table, th, td {
   border-collapse: collapse;
 }
 
+table#tabletime td.disruption {
+  color: orange;
+  text-align: center;
+  font-size: smaller;
+}
+
 a {
   text-decoration: none;
   font-weight: normal;
