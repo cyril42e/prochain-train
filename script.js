@@ -16,8 +16,12 @@ function formatTE(el) { // format Time Element
   return el < 10 ? "0" + el : el;
 }
 
-function formatTime(time) {
-  return formatTE(now.getHours()) + ":" + formatTE(now.getMinutes()) + ":" + formatTE(now.getSeconds());
+function formatTimeHMS(time) {
+  return formatTE(time.getHours()) + ":" + formatTE(time.getMinutes()) + ":" + formatTE(time.getSeconds());
+}
+
+function formatTimeHM(time) {
+  return formatTE(time.getHours()) + ":" + formatTE(time.getMinutes());
 }
 
 function formatDateFile(date) {
@@ -111,7 +115,7 @@ async function fetchWeather(lat, lon)
 {
   // get coordinates first
   let d = document.getElementById('coords');
-  d.append(document.createTextNode("Pluie 1h @"));
+  d.append(document.createTextNode(" @"));
   try {
     const position = await fetchCoords();
     lat = position.coords.latitude;
@@ -143,6 +147,11 @@ async function fetchWeather(lat, lon)
     }
 
     const json_data = await response.json();
+
+    let datebegin = new Date(json_data.properties.forecast[0].time);
+    datebegin.setMinutes(datebegin.getMinutes() - 5);
+    d.prepend(document.createTextNode(formatTimeHM(datebegin)));
+    d.prepend(document.createTextNode("Pluie 1h @"));
 
     // prepare download link
     if (advanced) {
@@ -526,5 +535,5 @@ if (now.getHours() < 12 != invert) {
 
 //displayWeather([0,1,2,3,4,1,2,3,4]);
 
-document.body.prepend(document.createTextNode("Prochains trains à " + formatTime(now)));
+document.body.prepend(document.createTextNode("Prochains trains à " + formatTimeHMS(now)));
 
