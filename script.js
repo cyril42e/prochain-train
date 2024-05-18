@@ -33,10 +33,26 @@ function convertTimeGECtoAPI(datetime) {
   return datetime.replace(/[+-][0-9]{2}:[0-9]{2}$/, "").replace(/\-/g, "").replace(/:/g, "");
 }
 
+function dist(lat1, lon1, lat2, lon2) {
+  return Math.sqrt((lat1-lat2)**2 + ((lon1-lon2)*Math.cos(lat1*Math.PI/180.))**2)*(40000./360.);
+}
 
 ///##############################
 /// Fetch json
 ///##############################
+
+// fetch coordinates if available
+function fetchCoords()
+{
+  return new Promise((resolve, reject) => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 2000 });
+    } else {
+      reject(new Error("Geolocation API is not supported by this browser."));
+    }
+  });
+}
+
 
 // fetch json from official public API
 async function fetchDeparturesAPI(line_id, station_id, count)
@@ -98,31 +114,16 @@ async function fetchDeparturesGEC(station_id)
   }
 }
 
-// fetch coordinates if available
-function fetchCoords()
-{
-  return new Promise((resolve, reject) => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 2000 });
-    } else {
-      reject(new Error("Geolocation API is not supported by this browser."));
-    }
-  });
-}
-
 // fetch weather json from MeteoFrance
-async function fetchWeather(lat, lon)
+async function fetchWeather(lat, lon, source)
 {
   // get coordinates first
   let d = document.getElementById('coords');
   d.append(document.createTextNode(" @"));
-  try {
-    const position = await fetchCoords();
-    lat = position.coords.latitude;
-    lon = position.coords.longitude;
+  if (source == 0) {
     d.append(document.createTextNode(`cur `));
-  } catch (error) {
-    d.append(document.createTextNode("def" + (advanced ? `(${error.code}) ` : " ")));
+  } else {
+    d.append(document.createTextNode("def" + (advanced ? `(${source}) ` : " ")));
   }
   let a = document.createElement('a');
   a.href = `https://www.google.fr/maps/search/?api=1&query=${lat},${lon}`;
@@ -493,31 +494,64 @@ const invert = params.get('invert') == 1 ? true : false;
 const rcm = params.get('rcm').split(',');
 const rce = params.get('rce').split(',');
 
-async function displayStations(slot, rc) {
+async function displayStations() {
+  // fetch coordinates
+  let lat, lon, source, slot;
+  try {
+    const position = await fetchCoords();
+    source = 0;
+    lat = position.coords.latitude;
+    lon = position.coords.longitude;
+    dm = dist(lat, lon, rcm[0], rcm[1]);
+    de = dist(lat, lon, rce[0], rce[1]);
+    if (dm < de && dm < 20.)
+      slot = 'sm';
+    else if (de < dm && de < 20.)
+      slot = 'se';
+    else
+      slot = '';
+  } catch (error) {
+    source = error.code;
+    if (now.getHours() < 12 != invert) {
+      slot = 'sm';
+      lat = rcm[0];
+      lon = rcm[1];
+    } else {
+      slot = 'se';
+      lat = rce[0];
+      lon = rce[1];
+    }
+  }
+
   // read parameters and store them in an array
   let i = 1;
   let stations = [];
-  while (params.has(slot + i)) {
-    stations.push([params.get(slot + i), params.get(slot + i + 'x')])
-    i++;
+  if (slot != '') {
+    while (params.has(slot + i)) {
+      stations.push([params.get(slot + i), params.get(slot + i + 'x')])
+      i++;
+    }
   }
 
   // fetch them all asynchronously but in the same order
   try {
-    const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[0], count_request));
-    const promisesGEC = stations.map(station => fetchDeparturesGEC(station[0]));
-    const promiseWeather = fetchWeather(rc[0], rc[1]);
-    const resultsAPI = await Promise.all(promisesAPI);
-    const resultsGEC = await Promise.all(promisesGEC);
-    const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
-    const all_dataGEC = resultsGEC.map(json_data => extractGECInfos(json_data));
-    const all_dataMerged = all_dataAPI.map((dataAPI, index) => {
-      const dataGEC = all_dataGEC[index];
-      return mergeInfos(dataAPI, dataGEC);
-    });
-    all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][1], count_display, format, advanced));
-    if (advanced)
-      all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null, format));
+    let promiseWeather;
+    if (slot != '') {
+      const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[0], count_request));
+      const promisesGEC = stations.map(station => fetchDeparturesGEC(station[0]));
+      promiseWeather = fetchWeather(lat, lon, source);
+      const resultsAPI = await Promise.all(promisesAPI);
+      const resultsGEC = await Promise.all(promisesGEC);
+      const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
+      const all_dataGEC = resultsGEC.map(json_data => extractGECInfos(json_data));
+      const all_dataMerged = all_dataAPI.map((dataAPI, index) => {
+        const dataGEC = all_dataGEC[index];
+        return mergeInfos(dataAPI, dataGEC);
+      });
+      all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][1], count_display, format, advanced));
+      if (advanced)
+        all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null, format));
+    }
 
     const resultWeather = await promiseWeather;
     const dataWeather = extractWeatherInfos(resultWeather);
@@ -527,13 +561,9 @@ async function displayStations(slot, rc) {
   }
 }
 
-if (now.getHours() < 12 != invert) {
-  displayStations('sm', rcm); // morning
-} else {
-  displayStations('se', rce); // evening
-}
 
-//displayWeather([0,1,2,3,4,1,2,3,4]);
+
+displayStations();
 
 document.body.prepend(document.createTextNode("Prochains trains à " + formatTimeHMS(now)));
 
