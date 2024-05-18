@@ -143,6 +143,20 @@ async function fetchWeather(lat, lon)
     }
 
     const json_data = await response.json();
+
+    // prepare download link
+    if (advanced) {
+      const jsonString = JSON.stringify(json_data, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      let a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'rain_' + lat + ',' + lon + '_' + formatDateFile(now) + '.json';
+      a.appendChild(document.createTextNode('[1]'));
+      d.append(document.createTextNode(' '));
+      d.append(a);
+    }
+
     return json_data;
   } catch (error) {
     alert('Error : ' + error.message);
