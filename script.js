@@ -46,7 +46,7 @@ function fetchCoords()
 {
   return new Promise((resolve, reject) => {
     if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 2000 });
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 1000 });
     } else {
       reject(new Error("Geolocation API is not supported by this browser."));
     }
@@ -115,21 +115,8 @@ async function fetchDeparturesGEC(station_id)
 }
 
 // fetch weather json from MeteoFrance
-async function fetchWeather(lat, lon, source)
+async function fetchWeather(lat, lon)
 {
-  // get coordinates first
-  let d = document.getElementById('coords');
-  d.append(document.createTextNode(" @"));
-  if (source == 0) {
-    d.append(document.createTextNode(`cur `));
-  } else {
-    d.append(document.createTextNode("def" + (advanced ? `(${source}) ` : " ")));
-  }
-  let a = document.createElement('a');
-  a.href = `https://www.google.fr/maps/search/?api=1&query=${lat},${lon}`;
-  a.appendChild(document.createTextNode(`${lat},${lon}`));
-  d.append(a);
-
   // Url to retrieve weather
   const token = "__Wj7dVSTjV9YGu1guveLyDq0g7S7TfTjaHBTPTpO0kj8__";
   rainUrl = 'https://webservice.meteofrance.com/v3/rain/?lat=' + lat + '&lon=' + lon + '&token=' + token;
@@ -148,25 +135,6 @@ async function fetchWeather(lat, lon, source)
     }
 
     const json_data = await response.json();
-
-    let datebegin = new Date(json_data.properties.forecast[0].time);
-    datebegin.setMinutes(datebegin.getMinutes() - 5);
-    d.prepend(document.createTextNode(formatTimeHM(datebegin)));
-    d.prepend(document.createTextNode("Pluie 1h @"));
-
-    // prepare download link
-    if (advanced) {
-      const jsonString = JSON.stringify(json_data, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      let a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'rain_' + lat + ',' + lon + '_' + formatDateFile(now) + '.json';
-      a.appendChild(document.createTextNode('[1]'));
-      d.append(document.createTextNode(' '));
-      d.append(a);
-    }
-
     return json_data;
   } catch (error) {
     alert('Error : ' + error.message);
@@ -301,7 +269,7 @@ function mergeInfos(dataAPI, dataGEC) {
 ///##############################
 
 // Displays departures
-function displayDepartures(data, direction_excludes, count, format, advanced) {
+function displayDepartures(data, direction_excludes, count, advanced) {
   let ndisp = 0;
   let station = "";
   const results = [];
@@ -347,12 +315,12 @@ function displayDepartures(data, direction_excludes, count, format, advanced) {
   const url = URL.createObjectURL(blob);
 
   // format results
-  format(station, url, results);
+  format_station(station, url, results);
 }
 
 
 // Display departures with GEC API for comparison purpose
-function displayDeparturesGEC(data, direction_excludes, format) {
+function displayDeparturesGEC(data, direction_excludes) {
   const results = [];
   let station = "";
   for (const [key, dep] of data[0]) {
@@ -384,7 +352,7 @@ function displayDeparturesGEC(data, direction_excludes, format) {
     }
   }
 
-  format(station, "", results, "GEC");
+  format_station(station, "", results, "GEC");
 }
 
 
@@ -392,40 +360,25 @@ function displayDeparturesGEC(data, direction_excludes, format) {
 /// Format functions
 ///##############################
 
-function format_list(station, link, results, suffix = "")
-{
-  link_html = ' <a href="' + link + '" download="' + station + '_' + formatDateFile(now) + '.json">[1]</a>';
-  $(document.body).append('<h3>' + station + (advanced ? link_html : '') + ':</h3>');
-  var $ul = $('<ul>');
-  $(document.body).append($ul);
-
-  $.each(results, function(i, dep) {
-    var $li = $('<li>');
-
-    s = "";
-    $.each(dep, function(j, entry) {
-      if (entry[1] == "") {
-        s += entry[0] + ' ';
-      } else {
-        s += '<span class=' + entry[1] + '>' + entry[0] + '</span> ';
-      }
-    });
-
-    $li.html(s);
-    $ul.append($li);
-  });
-}
-
-function format_table(station, link, results, suffix = "")
+function format_title(level, innerHTML, suffix = "")
 {
   let table = document.getElementById('tabletime' + suffix);
-
   let tr = table.insertRow(-1);
   let th = document.createElement('th');
   th.setAttribute('colSpan', '4');
-  link_html = ' <a href="' + link + '" download="' + station + '_' + formatDateFile(now) + '.json">[1]</a>';
-  th.innerHTML = station + ((advanced && link != "") ? link_html : '');
+  th.innerHTML = innerHTML;
+  if (level == 1)
+    th.setAttribute('class', 'section');
+  else
+    th.setAttribute('class', 'station');
   tr.appendChild(th);
+}
+
+function format_station(station, link, results, suffix = "")
+{
+  let table = document.getElementById('tabletime' + suffix);
+  link_html = ' <a href="' + link + '" download="' + station + '_' + formatDateFile(now) + '.json">[1]</a>';
+  format_title(2, station + ((advanced && link != "") ? link_html : ''), suffix);
 
   $.each(results, function(i, dep) {
     let tr = table.insertRow(-1);
@@ -449,6 +402,27 @@ function format_table(station, link, results, suffix = "")
 
 function displayWeather(data)
 {
+  // section title
+  let datebegin = new Date(data[1].properties.forecast[0].time);
+  datebegin.setMinutes(datebegin.getMinutes() - 5);
+  var p = document.createElement('p');
+  p.appendChild(document.createTextNode("Pluie 1h @" + formatTimeHM(datebegin) + " @" + data[1].properties.name));
+  if (advanced) {
+    // prepare download link
+    p.appendChild(document.createTextNode(' '));
+    const jsonString = JSON.stringify(data[1], null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'rain_' + data[1].properties.name + '_' + formatDateFile(now) + '.json';
+    a.appendChild(document.createTextNode('[1]'));
+    p.append(a);
+  }
+
+  format_title(1, p.innerHTML);
+
+  // display result
   const colormap = { 0: "white", 1: "#f6f7d5", 2:"#bfe1f7", 3:"#81a4f7", 4:"blue" };
   let table = document.getElementById('tabletime');
 
@@ -488,7 +462,6 @@ const params = new URLSearchParams(query);
 const line = params.get('line');
 const count_display = params.has('count') ? params.get('count') : 3;
 const count_request = count_display*4;
-const format = params.get('format') == 'list' ? format_list : format_table;
 const advanced = params.get('advanced') == 1 ? true : false;
 const invert = params.get('invert') == 1 ? true : false;
 const rcm = params.get('rcm').split(',');
@@ -496,6 +469,8 @@ const rce = params.get('rce').split(',');
 
 async function displayStations() {
   // fetch coordinates
+  let status = document.getElementById('status');
+  status.append("Getting coordinates... ");
   let lat, lon, source, slot;
   try {
     const position = await fetchCoords();
@@ -522,6 +497,10 @@ async function displayStations() {
       lon = rce[1];
     }
   }
+  let errors = ['Success', 'Denied', 'Unavailable', 'Timeout'];
+  status.append(source == 0 ? `Success ${lat},${lon}` : `Failure (${errors[source]})`);
+  status.append(document.createElement("br"));
+  status.append("Fetching data... ");
 
   // read parameters and store them in an array
   let i = 1;
@@ -539,7 +518,7 @@ async function displayStations() {
     if (slot != '') {
       const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[0], count_request));
       const promisesGEC = stations.map(station => fetchDeparturesGEC(station[0]));
-      promiseWeather = fetchWeather(lat, lon, source);
+      promiseWeather = fetchWeather(lat, lon);
       const resultsAPI = await Promise.all(promisesAPI);
       const resultsGEC = await Promise.all(promisesGEC);
       const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
@@ -548,22 +527,24 @@ async function displayStations() {
         const dataGEC = all_dataGEC[index];
         return mergeInfos(dataAPI, dataGEC);
       });
-      all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][1], count_display, format, advanced));
+      format_title(1, "Prochains trains à " + formatTimeHMS(now));
+
+      all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][1], count_display, advanced));
       if (advanced)
-        all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null, format));
+        all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null));
     }
 
     const resultWeather = await promiseWeather;
     const dataWeather = extractWeatherInfos(resultWeather);
     displayWeather(dataWeather);
+    status.append("Done.");
+    if (!advanced)
+      status.innerHTML = "";
   } catch (error) {
     alert('Error: ' + error.message);
   }
 }
 
-
-
 displayStations();
 
-document.body.prepend(document.createTextNode("Prochains trains à " + formatTimeHMS(now)));
 

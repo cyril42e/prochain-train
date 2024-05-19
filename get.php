@@ -8,7 +8,7 @@
 
 <body>
   <table id="tabletime"></table>
-  <div id="coords"></div>
+  <div id="status"></div>
   <table id="tabletimeGEC"></table>
 
   <script src="script.js"></script>

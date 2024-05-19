@@ -65,6 +65,10 @@ table#tabletime td.disruption {
   font-size: smaller;
 }
 
+table#tabletime th.section {
+  background-color: #a3a3a3;
+}
+
 a {
   text-decoration: none;
   font-weight: normal;
