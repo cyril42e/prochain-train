@@ -33,20 +33,42 @@ function convertTimeGECtoAPI(datetime) {
   return datetime.replace(/[+-][0-9]{2}:[0-9]{2}$/, "").replace(/\-/g, "").replace(/:/g, "");
 }
 
-function dist(lat1, lon1, lat2, lon2) {
+function dist(lat1, lon1, lat2, lon2) { // in km
   return Math.sqrt((lat1-lat2)**2 + ((lon1-lon2)*Math.cos(lat1*Math.PI/180.))**2)*(40000./360.);
 }
+
+async function withTimeout(promise, timeout) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => { reject(new Error('Timeout')); }, timeout);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    // the promise has been resolved before the timeout
+    clearTimeout(timeoutId);
+    return result;
+  } catch (error) {
+    if (error.message === 'Timeout') {
+      // the timeout has elapsed first
+      return null;
+    } else {
+      throw error;
+    }
+  }
+}
+
 
 ///##############################
 /// Fetch json
 ///##############################
 
-// fetch coordinates if available
-function fetchCoords()
+// fetch coordinates
+function fetchCoords(timeout)
 {
   return new Promise((resolve, reject) => {
     if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 1000 });
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: timeout });
     } else {
       reject(new Error("Geolocation API is not supported by this browser."));
     }
@@ -145,6 +167,27 @@ async function fetchWeather(lat, lon)
 ///##############################
 /// Extract infos from json
 ///##############################
+
+// get map of train number with useful infos
+function extractCoords(position) {
+  if (position) {
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
+    const dm = dist(lat, lon, coords[0][1], coords[0][2]);
+    const de = dist(lat, lon, coords[1][1], coords[1][2]);
+    if (dm < de && dm < farThreshold)
+      return ['sm', coords[0][1], coords[0][2]];
+    else if (de < dm && de < farThreshold)
+      return ['se', coords[1][1], coords[1][2]];
+    else
+      return ['', lat, lon];
+  } else {
+    if (now.getHours() < 12 != invert)
+      return ['sm', coords[0][1], coords[0][2]];
+    else
+      return ['se', coords[1][1], coords[1][2]];
+  }
+}
 
 // get map of train number with useful infos
 function extractAPIInfos(json_data) {
@@ -273,7 +316,6 @@ function displayDepartures(data, direction_excludes, count, advanced) {
   let ndisp = 0;
   let station = "";
   const results = [];
-
   for (const [key, dep] of data[0]) {
     // filter directions
     let right_direction = true;
@@ -464,83 +506,195 @@ const count_display = params.has('count') ? params.get('count') : 3;
 const count_request = count_display*4;
 const advanced = params.get('advanced') == 1 ? true : false;
 const invert = params.get('invert') == 1 ? true : false;
-const rcm = params.get('rcm').split(',');
-const rce = params.get('rce').split(',');
+const farThreshold = 20.0;
+const fastTimeout = 300; // 200
+const slowTimeout = 3000; // 3000
+
+let coords = [];
+coords.push(['sm'].concat(params.get('rcm').split(',')));
+coords.push(['se'].concat(params.get('rce').split(',')));
+
+// read parameters and store them in an array
+let stations = [];
+for (const slot of ['sm', 'se']) {
+  let i = 1;
+  while (params.has(slot + i)) {
+    stations.push([slot, params.get(slot + i), params.get(slot + i + 'x')])
+    i++;
+  }
+}
+
+async function processCoords(promise, type, whenSuccess, whenFar, whenTimeout, whenError) {
+  let status = document.getElementById('status');
+  const errors = ['Success', 'Denied', 'Unavailable', 'Timeout'];
+  let dataCoords, pendingCoords = false;
+  try {
+    status.append(`Trying ${type} coordinates... `);
+    const resultCoords = await withTimeout(promise, fastTimeout);
+    dataCoords = extractCoords(resultCoords);
+    if (resultCoords) {
+      // fetch coordinates succeeded
+      status.append(`Success ${dataCoords[1]},${dataCoords[2]}`);
+      if (dataCoords[0] == '')
+        whenFar(dataCoords);
+      else
+        whenSuccess(dataCoords);
+    } else {
+      // fetch cordinates had timeout (fetch all stations)
+      pendingCoords = true;
+      status.append(`Timeout`);
+      whenTimeout(dataCoords);
+    }
+  } catch(error) {
+    // fetch coordinates failed
+    dataCoords = extractCoords(null);
+    status.append(`Failure (${errors[error.code]})`);
+    whenError(dataCoords);
+  }
+  return [dataCoords, pendingCoords];
+}
+
+
 
 async function displayStations() {
   // fetch coordinates
   let status = document.getElementById('status');
-  status.append("Getting coordinates... ");
-  let lat, lon, source, slot;
-  try {
-    const position = await fetchCoords();
-    source = 0;
-    lat = position.coords.latitude;
-    lon = position.coords.longitude;
-    dm = dist(lat, lon, rcm[0], rcm[1]);
-    de = dist(lat, lon, rce[0], rce[1]);
-    if (dm < de && dm < 20.)
-      slot = 'sm';
-    else if (de < dm && de < 20.)
-      slot = 'se';
-    else
-      slot = '';
-  } catch (error) {
-    source = error.code;
-    if (now.getHours() < 12 != invert) {
-      slot = 'sm';
-      lat = rcm[0];
-      lon = rcm[1];
-    } else {
-      slot = 'se';
-      lat = rce[0];
-      lon = rce[1];
-    }
-  }
-  let errors = ['Success', 'Denied', 'Unavailable', 'Timeout'];
-  status.append(source == 0 ? `Success ${lat},${lon}` : `Failure (${errors[source]})`);
-  status.append(document.createElement("br"));
-  status.append("Fetching data... ");
+  // start geolocation
+  const promiseCoords = fetchCoords(slowTimeout);
 
-  // read parameters and store them in an array
-  let i = 1;
-  let stations = [];
-  if (slot != '') {
-    while (params.has(slot + i)) {
-      stations.push([params.get(slot + i), params.get(slot + i + 'x')])
-      i++;
+  // first let's see if we have very fast geolocation
+  const filterStationsSlot = (dataCoords) => { stations = stations.filter((station) => station[0] == dataCoords[0]); };
+  let [dataCoords, pendingCoords] = await processCoords(promiseCoords, "fast",
+    filterStationsSlot, // whenSuccess
+    (dataCoords) => { stations = []; }, // whenFar
+    (dataCoords) => { }, // whenTimeout
+    filterStationsSlot // whenError
+  );
+
+/*
+  // first let's see if we have very fast geolocation
+  let dataCoords, pendingCoords = false;
+  try {
+    status.append("Trying fast coordinates... ");
+    const resultCoords = await withTimeout(promiseCoords, 200);
+    dataCoords = extractCoords(resultCoords);
+    if (resultCoords) {
+      // fetch coordinates succeeded
+      status.append(`Success ${dataCoords[1]},${dataCoords[2]}`);
+      if (dataCoords[0] == '')
+        // we are too far from the stations, just deal with weather
+        stations = [];
+      else
+        // only keep closest stations
+        stations = stations.filter((station) => station[0] == dataCoords[0]);
+    } else {
+      // fetch cordinates had timeout (fetch all stations)
+      pendingCoords = true;
+      status.append(`Timeout`);
     }
+  } catch(error) {
+    // fetch coordinates failed
+    dataCoords = extractCoords(null);
+    status.append(`Failure (${errors[source]})`);
+    // only keep closest stations
+    stations = stations.filter((station) => station[0] == dataCoords[0]);
   }
+*/
 
   // fetch them all asynchronously but in the same order
-  try {
-    let promiseWeather;
-    if (slot != '') {
-      const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[0], count_request));
-      const promisesGEC = stations.map(station => fetchDeparturesGEC(station[0]));
-      promiseWeather = fetchWeather(lat, lon);
-      const resultsAPI = await Promise.all(promisesAPI);
-      const resultsGEC = await Promise.all(promisesGEC);
-      const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
-      const all_dataGEC = resultsGEC.map(json_data => extractGECInfos(json_data));
-      const all_dataMerged = all_dataAPI.map((dataAPI, index) => {
-        const dataGEC = all_dataGEC[index];
-        return mergeInfos(dataAPI, dataGEC);
-      });
-      format_title(1, "Prochains trains à " + formatTimeHMS(now));
+  const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[1], count_request));
+  const promisesGEC = stations.map(station => fetchDeparturesGEC(station[1]));
+  let promisesWeather = coords.map(coord => fetchWeather(coord[1], coord[2]));
 
-      all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][1], count_display, advanced));
-      if (advanced)
-        all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null));
+  try {
+    status.append(document.createElement("br"));
+    status.append("Fetching data... ");
+    let resultsAPI = await Promise.all(promisesAPI);
+    let resultsGEC = await Promise.all(promisesGEC);
+    let resultsWeather = await Promise.all(promisesWeather);
+    status.append(`Success`);
+
+    // check again coordinates if necessary (but still don't wait)
+    if (pendingCoords) {
+      status.append(document.createElement("br"));
+      const filterResultsSlot = (dataCoords) => {
+        resultsAPI = resultsAPI.filter((result, i) => stations[i][0] == dataCoords[0]);
+        resultsGEC = resultsGEC.filter((result, i) => stations[i][0] == dataCoords[0]);
+        stations = stations.filter((station) => station[0] == dataCoords[0]);
+        resultsWeather = resultsWeather.filter((result, i) => coords[i][0] == dataCoords[0]); };
+      [dataCoords, pendingCoords] = await processCoords(promiseCoords, "final",
+        filterResultsSlot, // whenSuccess
+        (dataCoords) => { promisesWeather = [fetchWeather(dataCoords[1], dataCoords[2])];
+                          resultsAPI = [];
+                          resultsGEC = []; }, // whenFar
+        filterResultsSlot, // whenTimeout
+        filterResultsSlot // whenError
+      );
+/*
+      try {
+        status.append("Trying final coordinates... ");
+        const resultCoords = await withTimeout(promiseCoords, 100);
+        dataCoords = extractCoords(resultCoords);
+        if (resultCoords) {
+          // fetch coordinates succeeded
+          status.append(`Success ${dataCoords[1]},${dataCoords[2]}`);
+          if (dataCoords[0] == '') {
+            // we are too far from the stations, just deal with weather
+            promisesWeather = [fetchWether(dataCoords[1], dataCoords[2])];
+            resultsAPI = [];
+            resultsGEC = [];
+          } else {
+            // only keep closest stations
+            resultsAPI = resultsAPI.filter((station, i) => stations[i][0] == dataCoords[0]);
+            resultsGEC = resultsGEC.filter((station, i) => stations[i][0] == dataCoords[0]);
+            resultsWeather = resultsWeather.filter((result, i) => coords[i][0] == dataCoords[0]);
+          }
+        } else {
+          // fetch cordinates had timeout (fetch all stations)
+          status.append(`Timeout`);
+          // only keep closest stations
+          resultsAPI = resultsAPI.filter((station, i) => stations[i][0] == dataCoords[0]);
+          resultsGEC = resultsGEC.filter((station, i) => stations[i][0] == dataCoords[0]);
+          resultsWeather = resultsWeather.filter((result, i) => coords[i][0] == dataCoords[0]);
+        }
+      } catch(error) {
+        // fetch coordinates failed
+        dataCoords = extractCoords(null);
+        status.append(`Failure (${errors[source]})`);
+        // only keep closest stations
+        resultsAPI = resultsAPI.filter((station, i) => stations[i][0] == dataCoords[0]);
+        resultsGEC = resultsGEC.filter((station, i) => stations[i][0] == dataCoords[0]);
+        resultsWeather = resultsWeather.filter((result, i) => coords[i][0] == dataCoords[0]);
+      }
+*/
     }
 
-    const resultWeather = await promiseWeather;
-    const dataWeather = extractWeatherInfos(resultWeather);
+    const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
+    const all_dataGEC = resultsGEC.map(json_data => extractGECInfos(json_data));
+    const all_dataMerged = all_dataAPI.map((dataAPI, index) => {
+      const dataGEC = all_dataGEC[index];
+      return mergeInfos(dataAPI, dataGEC);
+    });
+    format_title(1, "Prochains trains à " + formatTimeHMS(now));
+
+    all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][2], count_display, advanced));
+    if (advanced)
+      all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null));
+
+    if (dataCoords[0] == '') {
+      status.append(document.createElement("br"));
+      status.append("Fetching new weather... ");
+      resultsWeather = [await promisesWeather[0]];
+      status.append("Success");
+    }
+    const dataWeather = extractWeatherInfos(resultsWeather[0]);
     displayWeather(dataWeather);
-    status.append("Done.");
+
     if (!advanced)
       status.innerHTML = "";
+
   } catch (error) {
+    status.append(`Error (${error.message})`);
     alert('Error: ' + error.message);
   }
 }
