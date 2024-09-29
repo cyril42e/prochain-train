@@ -571,36 +571,6 @@ async function displayStations() {
     filterStationsSlot // whenError
   );
 
-/*
-  // first let's see if we have very fast geolocation
-  let dataCoords, pendingCoords = false;
-  try {
-    status.append("Trying fast coordinates... ");
-    const resultCoords = await withTimeout(promiseCoords, 200);
-    dataCoords = extractCoords(resultCoords);
-    if (resultCoords) {
-      // fetch coordinates succeeded
-      status.append(`Success ${dataCoords[1]},${dataCoords[2]}`);
-      if (dataCoords[0] == '')
-        // we are too far from the stations, just deal with weather
-        stations = [];
-      else
-        // only keep closest stations
-        stations = stations.filter((station) => station[0] == dataCoords[0]);
-    } else {
-      // fetch cordinates had timeout (fetch all stations)
-      pendingCoords = true;
-      status.append(`Timeout`);
-    }
-  } catch(error) {
-    // fetch coordinates failed
-    dataCoords = extractCoords(null);
-    status.append(`Failure (${errors[source]})`);
-    // only keep closest stations
-    stations = stations.filter((station) => station[0] == dataCoords[0]);
-  }
-*/
-
   // fetch them all asynchronously but in the same order
   const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[1], count_request));
   const promisesGEC = stations.map(station => fetchDeparturesGEC(station[1]));
@@ -630,43 +600,6 @@ async function displayStations() {
         filterResultsSlot, // whenTimeout
         filterResultsSlot // whenError
       );
-/*
-      try {
-        status.append("Trying final coordinates... ");
-        const resultCoords = await withTimeout(promiseCoords, 100);
-        dataCoords = extractCoords(resultCoords);
-        if (resultCoords) {
-          // fetch coordinates succeeded
-          status.append(`Success ${dataCoords[1]},${dataCoords[2]}`);
-          if (dataCoords[0] == '') {
-            // we are too far from the stations, just deal with weather
-            promisesWeather = [fetchWether(dataCoords[1], dataCoords[2])];
-            resultsAPI = [];
-            resultsGEC = [];
-          } else {
-            // only keep closest stations
-            resultsAPI = resultsAPI.filter((station, i) => stations[i][0] == dataCoords[0]);
-            resultsGEC = resultsGEC.filter((station, i) => stations[i][0] == dataCoords[0]);
-            resultsWeather = resultsWeather.filter((result, i) => coords[i][0] == dataCoords[0]);
-          }
-        } else {
-          // fetch cordinates had timeout (fetch all stations)
-          status.append(`Timeout`);
-          // only keep closest stations
-          resultsAPI = resultsAPI.filter((station, i) => stations[i][0] == dataCoords[0]);
-          resultsGEC = resultsGEC.filter((station, i) => stations[i][0] == dataCoords[0]);
-          resultsWeather = resultsWeather.filter((result, i) => coords[i][0] == dataCoords[0]);
-        }
-      } catch(error) {
-        // fetch coordinates failed
-        dataCoords = extractCoords(null);
-        status.append(`Failure (${errors[source]})`);
-        // only keep closest stations
-        resultsAPI = resultsAPI.filter((station, i) => stations[i][0] == dataCoords[0]);
-        resultsGEC = resultsGEC.filter((station, i) => stations[i][0] == dataCoords[0]);
-        resultsWeather = resultsWeather.filter((result, i) => coords[i][0] == dataCoords[0]);
-      }
-*/
     }
 
     const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
