@@ -501,7 +501,6 @@ const now = new Date(Date.now());
 
 const query = window.location.search;
 const params = new URLSearchParams(query);
-const line = params.get('line');
 const count_display = params.has('count') ? params.get('count') : 3;
 const count_request = count_display*4;
 const advanced = params.get('advanced') == 1 ? true : false;
@@ -516,10 +515,15 @@ coords.push(['se'].concat(params.get('rce').split(',')));
 
 // read parameters and store them in an array
 let stations = [];
-for (const slot of ['sm', 'se']) {
+for (const slot of ['m', 'e']) {
   let i = 1;
-  while (params.has(slot + i)) {
-    stations.push([slot, params.get(slot + i), params.get(slot + i + 'x')])
+  station_slot = 's' + slot;
+  line_slot = 'l' + slot;
+  while (params.has(station_slot + i)) {
+    stations.push([station_slot,
+                   params.get(station_slot + i),
+                   params.get(line_slot + i),
+                   params.get(station_slot + i + 'x')])
     i++;
   }
 }
@@ -572,7 +576,7 @@ async function displayStations() {
   );
 
   // fetch them all asynchronously but in the same order
-  const promisesAPI = stations.map(station => fetchDeparturesAPI(line, station[1], count_request));
+  const promisesAPI = stations.map(station => fetchDeparturesAPI(station[2], station[1], count_request));
   const promisesGEC = stations.map(station => fetchDeparturesGEC(station[1]));
   let promisesWeather = coords.map(coord => fetchWeather(coord[1], coord[2]));
 
@@ -610,7 +614,7 @@ async function displayStations() {
     });
     format_title(1, "Prochains trains à " + formatTimeHMS(now));
 
-    all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][2], count_display, advanced));
+    all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][3], count_display, advanced));
     if (advanced)
       all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null));
 
