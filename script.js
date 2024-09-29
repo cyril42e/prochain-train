@@ -245,7 +245,7 @@ function mergeInfos(dataAPI, dataGEC) {
     for (const key of ["track", "status", "delay"]) {
       result.set(key, contentGEC.get(key));
     }
-    if (contentGEC.get("track") == "") {
+    if (contentGEC.get("track") == null) {
       result.set("track", "?");
     }
     return result;
