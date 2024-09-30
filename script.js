@@ -58,6 +58,11 @@ async function withTimeout(promise, timeout) {
   }
 }
 
+function display(el) {
+  let status = document.getElementById('status');
+  status.append(el);
+}
+
 
 ///##############################
 /// Fetch json
@@ -103,7 +108,7 @@ async function fetchDeparturesAPI(line_id, station_id, count)
     const json_data = await response.json();
     return json_data;
   } catch (error) {
-    alert('Error : ' + error.message);
+    display('Error API ' + station_id + ' : ' + error.message);
   }
 }
 
@@ -132,7 +137,7 @@ async function fetchDeparturesGEC(station_id)
     const json_data = await response.json();
     return json_data;
   } catch (error) {
-    alert('Error : ' + error.message);
+    display('Error GEC ' + station_id + ' : ' + error.message);
   }
 }
 
@@ -159,7 +164,7 @@ async function fetchWeather(lat, lon)
     const json_data = await response.json();
     return json_data;
   } catch (error) {
-    alert('Error : ' + error.message);
+    display('Error Weather : ' + error.message);
   }
 }
 
@@ -529,16 +534,15 @@ for (const slot of ['m', 'e']) {
 }
 
 async function processCoords(promise, type, whenSuccess, whenFar, whenTimeout, whenError) {
-  let status = document.getElementById('status');
   const errors = ['Success', 'Denied', 'Unavailable', 'Timeout'];
   let dataCoords, pendingCoords = false;
   try {
-    status.append(`Trying ${type} coordinates... `);
+    display(`Trying ${type} coordinates... `);
     const resultCoords = await withTimeout(promise, fastTimeout);
     dataCoords = extractCoords(resultCoords);
     if (resultCoords) {
       // fetch coordinates succeeded
-      status.append(`Success ${dataCoords[1]},${dataCoords[2]}`);
+      display(`Success ${dataCoords[1]},${dataCoords[2]}`);
       if (dataCoords[0] == '')
         whenFar(dataCoords);
       else
@@ -546,13 +550,13 @@ async function processCoords(promise, type, whenSuccess, whenFar, whenTimeout, w
     } else {
       // fetch cordinates had timeout (fetch all stations)
       pendingCoords = true;
-      status.append(`Timeout`);
+      display(`Timeout`);
       whenTimeout(dataCoords);
     }
   } catch(error) {
     // fetch coordinates failed
     dataCoords = extractCoords(null);
-    status.append(`Failure (${errors[error.code]})`);
+    display(`Failure (${errors[error.code]})`);
     whenError(dataCoords);
   }
   return [dataCoords, pendingCoords];
@@ -562,7 +566,6 @@ async function processCoords(promise, type, whenSuccess, whenFar, whenTimeout, w
 
 async function displayStations() {
   // fetch coordinates
-  let status = document.getElementById('status');
   // start geolocation
   const promiseCoords = fetchCoords(slowTimeout);
 
@@ -581,16 +584,16 @@ async function displayStations() {
   let promisesWeather = coords.map(coord => fetchWeather(coord[1], coord[2]));
 
   try {
-    status.append(document.createElement("br"));
-    status.append("Fetching data... ");
+    display(document.createElement("br"));
+    display("Fetching data... ");
     let resultsAPI = await Promise.all(promisesAPI);
     let resultsGEC = await Promise.all(promisesGEC);
     let resultsWeather = await Promise.all(promisesWeather);
-    status.append(`Success`);
+    display(`Success`);
 
     // check again coordinates if necessary (but still don't wait)
     if (pendingCoords) {
-      status.append(document.createElement("br"));
+      display(document.createElement("br"));
       const filterResultsSlot = (dataCoords) => {
         resultsAPI = resultsAPI.filter((result, i) => stations[i][0] == dataCoords[0]);
         resultsGEC = resultsGEC.filter((result, i) => stations[i][0] == dataCoords[0]);
@@ -619,10 +622,10 @@ async function displayStations() {
       all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null));
 
     if (dataCoords[0] == '') {
-      status.append(document.createElement("br"));
-      status.append("Fetching new weather... ");
+      display(document.createElement("br"));
+      display("Fetching new weather... ");
       resultsWeather = [await promisesWeather[0]];
-      status.append("Success");
+      display("Success");
     }
     const dataWeather = extractWeatherInfos(resultsWeather[0]);
     displayWeather(dataWeather);
@@ -631,8 +634,7 @@ async function displayStations() {
       status.innerHTML = "";
 
   } catch (error) {
-    status.append(`Error (${error.message})`);
-    alert('Error: ' + error.message);
+    display(`Error (${error.message})`);
   }
 }
 
