@@ -95,6 +95,7 @@ async function fetchDeparturesAPI(line_id, station_id, count)
   try {
     const response = await fetch(departuresUrl, {
       method: 'GET',
+      cache: "no-cache",
       headers: {
         'Authorization': 'Basic ' + btoa(token),
         'Content-Type': 'application/json'
@@ -125,6 +126,7 @@ async function fetchDeparturesGEC(station_id)
   try {
     const response = await fetch(cors_proxy + encodeURIComponent(departuresUrl), {
       method: 'GET',
+      cache: "no-cache",
       headers: {
         'Content-Type': 'application/json'
       }
@@ -152,6 +154,7 @@ async function fetchWeather(lat, lon)
   try {
     const response = await fetch(rainUrl, {
       method: 'GET',
+      cache: "no-cache",
       headers: {
         'Content-Type': 'application/json'
       }
