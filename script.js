@@ -107,9 +107,10 @@ async function fetchDeparturesAPI(line_id, station_id, count)
     }
 
     const json_data = await response.json();
+    display('Sa ');
     return json_data;
   } catch (error) {
-    display('Error API ' + station_id + ' : ' + error.message);
+    display('Ea ' + station_id + ' : ' + error.message + '] ');
   }
 }
 
@@ -137,9 +138,10 @@ async function fetchDeparturesGEC(station_id)
     }
 
     const json_data = await response.json();
+    display('Sg ');
     return json_data;
   } catch (error) {
-    display('Error GEC ' + station_id + ' : ' + error.message);
+    display('[Eg ' + station_id + ' : ' + error.message + '] ');
   }
 }
 
@@ -165,9 +167,10 @@ async function fetchWeather(lat, lon)
     }
 
     const json_data = await response.json();
+    display('Sw ');
     return json_data;
   } catch (error) {
-    display('Error Weather : ' + error.message);
+    display('[Ew ' + error.message + '] ');
   }
 }
 
@@ -581,18 +584,19 @@ async function displayStations() {
     filterStationsSlot // whenError
   );
 
-  // fetch them all asynchronously but in the same order
+  // fetch them all asynchronously but get them in the same order
+  display(document.createElement("br"));
+  display("Fetching data... ");
   const promisesAPI = stations.map(station => fetchDeparturesAPI(station[2], station[1], count_request));
   const promisesGEC = stations.map(station => fetchDeparturesGEC(station[1]));
   let promisesWeather = coords.map(coord => fetchWeather(coord[1], coord[2]));
+  display("Ragw ");
 
   try {
-    display(document.createElement("br"));
-    display("Fetching data... ");
     let resultsAPI = await Promise.all(promisesAPI);
     let resultsGEC = await Promise.all(promisesGEC);
     let resultsWeather = await Promise.all(promisesWeather);
-    display(`Success`);
+    display(`Finished`);
 
     // check again coordinates if necessary (but still don't wait)
     if (pendingCoords) {
