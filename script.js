@@ -82,36 +82,39 @@ function fetchCoords(timeout)
 
 
 // fetch json from official public API
-async function fetchDeparturesAPI(line_id, station_id, count)
-{
+async function fetchDeparturesAPI(lines_ids, station_id, count) {
   const token = "cbfb30d4-a3b4-472e-9657-6ee4319e0501";
-  const full_line_id = 'line:SNCF:FR:Line::' + line_id + ':';
-  const full_station_id = 'stop_area:SNCF:' + station_id;
 
-  // Url to retrieve departures
-  var departuresUrl = 'https://api.sncf.com/v1/coverage/sncf/stop_areas/' + full_station_id + '/lines/' + full_line_id + '/departures?count=' + count;
+  const promises = lines_ids.map(line_id => {
+    const full_line_id = 'line:SNCF:FR:Line::' + line_id + ':';
+    const full_station_id = 'stop_area:SNCF:' + station_id;
 
-  // Call Navitia API
-  try {
-    const response = await fetch(departuresUrl, {
+    // Url to retrieve departures
+    const departuresUrl = 'https://api.sncf.com/v1/coverage/sncf/stop_areas/' + full_station_id + '/lines/' + full_line_id + '/departures?count=' + count;
+
+    return fetch(departuresUrl, {
       method: 'GET',
       cache: "no-cache",
       headers: {
         'Authorization': 'Basic ' + btoa(token),
         'Content-Type': 'application/json'
       }
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Request error: ' + response.status);
+      }
+      display('Sa ');
+      return response.json();
+    })
+    .catch(error => {
+      alert('[Ea ' + station_id + ' : ' + error.message + '] ');
+      return null;
     });
+  });
 
-    if (!response.ok) {
-      throw new Error('Request error: ' + response.status);
-    }
-
-    const json_data = await response.json();
-    display('Sa ');
-    return json_data;
-  } catch (error) {
-    display('Ea ' + station_id + ' : ' + error.message + '] ');
-  }
+  const results = await Promise.all(promises);
+  return results.filter(result => result !== null);
 }
 
 
@@ -201,22 +204,24 @@ function extractCoords(position) {
 }
 
 // get map of train number with useful infos
-function extractAPIInfos(json_data) {
+function extractAPIInfos(jsons_data) {
   const results = new Map();
-  $.each(json_data.departures, function(i, dep) {
-    result = new Map([["btime", dep.stop_date_time.base_departure_date_time],
-                      ["atime", dep.stop_date_time.departure_date_time],
-                      ["dest", dep.display_informations.direction.replace(/ \(.*/g, "")],
-                      ["station", dep.stop_point.name]]);
-    results.set(dep.display_informations.headsign, result);
+  $.each(jsons_data, function (j, json_data) {
+    $.each(json_data.departures, function(i, dep) {
+      result = new Map([["btime", dep.stop_date_time.base_departure_date_time],
+                        ["atime", dep.stop_date_time.departure_date_time],
+                        ["dest", dep.display_informations.direction.replace(/ \(.*/g, "")],
+                        ["station", dep.stop_point.name]]);
+      results.set(dep.display_informations.headsign, result);
+    });
+    $.each(json_data.disruptions, function(i, dis) {
+      const trainNumber = dis.impacted_objects[0].pt_object.trip.name;
+      if (results.has(trainNumber)) {
+        results.get(trainNumber).set("disruption", dis.messages[0].text);
+      }
+    });
   });
-  $.each(json_data.disruptions, function(i, dis) {
-    const trainNumber = dis.impacted_objects[0].pt_object.trip.name;
-    if (results.has(trainNumber)) {
-      results.get(trainNumber).set("disruption", dis.messages[0].text);
-    }
-  });
-  return [results, json_data];
+  return [results, jsons_data];
 }
 
 
@@ -587,7 +592,7 @@ async function displayStations() {
   // fetch them all asynchronously but get them in the same order
   display(document.createElement("br"));
   display("Fetching data... ");
-  const promisesAPI = stations.map(station => fetchDeparturesAPI(station[2], station[1], count_request));
+  const promisesAPI = stations.map(station => fetchDeparturesAPI(station[2].split(';'), station[1], count_request));
   const promisesGEC = stations.map(station => fetchDeparturesGEC(station[1]));
   let promisesWeather = coords.map(coord => fetchWeather(coord[1], coord[2]));
   display("Ragw ");
