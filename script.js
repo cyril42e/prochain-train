@@ -519,7 +519,7 @@ function displayWeather(data)
 
 const now = new Date(Date.now());
 
-const query = window.location.search;
+const query = window.location.hash.substr(1);
 const params = new URLSearchParams(query);
 const count_display = params.has('count') ? params.get('count') : 3;
 const count_request = count_display*4;
