@@ -234,8 +234,12 @@ function extractGECInfos(json_data) {
                       ["track", dep.platform.track],
                       ["dest",  dep.traffic.destination],
                       ["station", dep.uic],
+                      ["mode", dep.trainMode],
                       ["status", dep.informationStatus.trainStatus],
                       ["delay", dep.informationStatus.delay]]);
+    if (dep.trainMode != "TRAIN") {
+      result.set("disruption", dep.trainMode);
+    }
     results.set(dep.trainNumber, result);
   });
   return [results, json_data];
