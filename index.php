@@ -25,26 +25,35 @@ On peut l'utiliser de différentes manières:
 <h2>Exemple</h2>
 
 <p>J'utilise personnellement quotidiennement
-<a href="get.php?line=DDEF5935-0332-4ED5-B499-5C664AF7CF05&sm1=87611921&sm1x=jourdain;auch&sm2=87611467&sm2x=jourdain;auch&rcm=43.616294,1.314077&se1=87611004&se2=87446179&se2x=matabiau&rce=43.611301,1.453561&count=4&format=table">cette URL</a>:
-<pre>https://crteknologies.fr/tools/prochain-train/get.php?line=DDEF5935-0332-4ED5-B499-5C664AF7CF05&sm1=87611921&sm1x=jourdain;auch&sm2=87611467&sm2x=jourdain;auch&rcm=43.616294,1.314077&se1=87611004&se2=87446179&se2x=matabiau&rce=43.611301,1.453561&count=4&format=table</pre>
+<a href="get.php#sm1=87611921&lm1=DDEF5935-0332-4ED5-B499-5C664AF7CF05&sm1x=jourdain;auch&sm2=87611467&lm2=DDEF5935-0332-4ED5-B499-5C664AF7CF05;53865649-1C74-4657-9123-DA7EDE71D3DB&sm2x=jourdain;auch&rcm=43.616294,1.314077&se1=87611004&le1=DDEF5935-0332-4ED5-B499-5C664AF7CF05&se2=87446179&le2=DDEF5935-0332-4ED5-B499-5C664AF7CF05;53865649-1C74-4657-9123-DA7EDE71D3DB&se2x=matabiau&rce=43.611301,1.453561&count=4&format=table">cette URL</a>:
+<pre>https://crteknologies.fr/tools/prochain-train/get.php#sm1=87611921&lm1=DDEF5935-0332-4ED5-B499-5C664AF7CF05&sm1x=jourdain;auch&sm2=87611467&lm2=DDEF5935-0332-4ED5-B499-5C664AF7CF05;53865649-1C74-4657-9123-DA7EDE71D3DB&sm2x=jourdain;auch&rcm=43.616294,1.314077&se1=87611004&le1=DDEF5935-0332-4ED5-B499-5C664AF7CF05&se2=87446179&le2=DDEF5935-0332-4ED5-B499-5C664AF7CF05;53865649-1C74-4657-9123-DA7EDE71D3DB&se2x=matabiau&rce=43.611301,1.453561&count=4&format=table</pre>
 </p>
 
 L'URL se decompose ainsi:
 <ul>
   <li><pre>https://crteknologies.fr/tools/prochain-train/get.php</pre> : l'URL du service sur ce site.</li>
-  <li><pre>line=DDEF5935-0332-4ED5-B499-5C664AF7CF05</pre> : l'identifiant de la ligne SNCF à suivre (ici Toulouse-Auch).</li>
+  <li><pre>#</pre> : les paramètres sont fournis via un indicateur de fragment (introduit par un #) plutôt qu'une chaine de requête (introduite par un ?),
+    afin de pas être envoyés au serveur, pour des questions de vie privée.</li>
   <li><pre>sm1=87611921</pre> : l'identifiant de la première station à suivre le <b>matin</b> (StationMorning1) (ici Colomiers Lycée International).</li>
+  <li><pre>lm1=DDEF5935-0332-4ED5-B499-5C664AF7CF05</pre> : les identifiants des lignes SNCF à suivre sur cette première station du matin (LinesMorning1), séparés par des ";"
+    (ici Toulouse-Auch)</li>
   <li><pre>sm1x=jourdain;auch</pre> : une liste de chaines de caractères séparées par point virgule, servant à exclure les trains dont la
-    destination contient une de ces chaines de caractères afin de ne garder que ceux qui vont dans le bon sens (ici je veux seulement le matin les
+    destination contient une de ces chaines de caractères afin de ne garder que ceux qui vont dans le bon sens (StationMorning1eXclude) (ici je veux seulement le matin les
     trains qui vont vers Toulouse).
   <li><pre>sm2=87611467</pre> : l'identifiant d'une seconde gare à suivre le matin (ici Colomiers).</li>
+  <li><pre>lm2=DDEF5935-0332-4ED5-B499-5C664AF7CF05;53865649-1C74-4657-9123-DA7EDE71D3DB</pre> : les identifiants des lignes SNCF à suivre sur cette
+    seconde station du matin. Il y a ici deux lignes.</li>
   <li><pre>sm2x=jourdain;auch</pre> : la liste d'exclusions pour cette seconde gare (je pourrais également exclure Matabiau afin de ne pas avoir
     en double avec la première gare les trains qui vont au même endroit, mais seulement les trains supplémentaires qui ne circulent que entre
     Colomiers et Arènes, mais cela est risqué car quand les trains changent de départ ils n'apparaitraient nulle part).</li>
-  <li><pre>rcm=43.616294,1.314077</pre> : les coordonnées par défaut pour les prévisions de pluie le matin (Rain Coordinates Morning).</li>
+  <li><pre>rcm=43.616294,1.314077</pre> : les coordonnées par défaut pour les prévisions de pluie le matin (RainCoordinatesMorning).</li>
   <li><pre>se1=87611004</pre> : l'identifiant de la première station à suivre le <b>soir</b> (StationEvening1) (ici Toulouse Matabiau).
     Pas besoin de liste d'exclusion dans ce cas car c'est le départ de la ligne.</li>
+  <li><pre>le1=DDEF5935-0332-4ED5-B499-5C664AF7CF05</pre> : les identifiants des lignes SNCF à suivre sur cette
+    première station du soir (LineEvening1).</li>
   <li><pre>se2=87446179</pre> : l'identifiant d'une seconde gare à suivre le soir (ici Saint-Cyprien Arènes).</li>
+  <li><pre>le2=DDEF5935-0332-4ED5-B499-5C664AF7CF05;53865649-1C74-4657-9123-DA7EDE71D3DB</pre> : les identifiants des lignes SNCF à suivre sur cette
+    seconde station du soir. Il y a ici deux lignes.</li>
   <li><pre>se2x=matabiau;jourdain;auch</pre> : la liste d'exclusions pour cette seconde gare (même remarque que précédemment
     sur la possibilité d'ajouter "jourdain;auch" pour ne pas avoir les mêmes trains que l'autre gare).</li>
   <li><pre>rce=43.611301,1.453561</pre> : les coordonnées par défaut pour les prévisions de pluie le soir (Rain Coordinates Evening).</li>
@@ -57,7 +66,7 @@ L'URL se decompose ainsi:
 
 <p>TODO</p>
 
-<p><pre>https://api.sncf.com/v1/coverage/sncf/pt_objects?q=ter%20toulouse</pre></p>
+<p><pre>https://api.sncf.com/v1/coverage/sncf/pt_objects?q=ter%20toulouse&count=100</pre></p>
 
 <p>Ne garder que le code hexadécimal séparé par des tirets, le reste est ajouté.</p>
 
@@ -65,7 +74,7 @@ L'URL se decompose ainsi:
 
 <p>TODO</p>
 
-<p><pre>https://api.sncf.com/v1/coverage/sncf/places?q=colomiers</pre></p>
+<p><pre>https://api.sncf.com/v1/coverage/sncf/places?q=colomiers&count=100</pre></p>
 
 <p>Ne garder que la valeur numérique, le reste est ajouté.</p>
 
