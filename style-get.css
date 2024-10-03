@@ -1,3 +1,6 @@
+body {
+    background-color: #eeeeee;
+}
 
 .real_normal {
   font-weight: bold;
@@ -23,6 +26,7 @@
 
 table {
   margin-top: 0.3em;
+  background-color: #ffffff;
 }
 
 table#tabletime {
