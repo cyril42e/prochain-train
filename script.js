@@ -83,7 +83,7 @@ function fetchCoords(timeout)
 
 // fetch json from official public API
 async function fetchDeparturesAPI(lines_ids, station_id, count) {
-  const token = "cbfb30d4-a3b4-472e-9657-6ee4319e0501";
+  const token = config.sncf_token;
 
   const promises = lines_ids.map(line_id => {
     const full_line_id = 'line:SNCF:FR:Line::' + line_id + ':';
@@ -152,7 +152,7 @@ async function fetchDeparturesGEC(station_id)
 async function fetchWeather(lat, lon)
 {
   // Url to retrieve weather
-  const token = "__Wj7dVSTjV9YGu1guveLyDq0g7S7TfTjaHBTPTpO0kj8__";
+  const token = config.meteofrance_token;
   rainUrl = 'https://webservice.meteofrance.com/v3/rain/?lat=' + lat + '&lon=' + lon + '&token=' + token;
 
   // Call API
