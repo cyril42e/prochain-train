@@ -268,6 +268,10 @@ function mergeInfos(dataAPI, dataGEC) {
     if (contentGEC.get("track") == null) {
       result.set("track", "?");
     }
+    gec_atime = convertTimeGECtoAPI(contentGEC.get("atime"));
+    if (contentAPI.get("atime").localeCompare(gec_atime)) {
+      result.set("atime", gec_atime);
+    }
     return result;
   }
 
