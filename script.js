@@ -206,15 +206,17 @@ function extractCoords(position) {
 // get map of train number with useful infos
 function extractAPIInfos(jsons_data) {
   const results = new Map();
-  $.each(jsons_data, function (j, json_data) {
-    $.each(json_data.departures, function(i, dep) {
-      result = new Map([["btime", dep.stop_date_time.base_departure_date_time],
-                        ["atime", dep.stop_date_time.departure_date_time],
-                        ["dest", dep.display_informations.direction.replace(/ \(.*/g, "")],
-                        ["station", dep.stop_point.name]]);
+  jsons_data.forEach(json_data => {
+    json_data.departures.forEach(dep => {
+      const result = new Map([
+        ["btime", dep.stop_date_time.base_departure_date_time],
+        ["atime", dep.stop_date_time.departure_date_time],
+        ["dest", dep.display_informations.direction.replace(/ \(.*/g, "")],
+        ["station", dep.stop_point.name]
+      ]);
       results.set(dep.display_informations.headsign, result);
     });
-    $.each(json_data.disruptions, function(i, dis) {
+    json_data.disruptions.forEach(dis => {
       const trainNumber = dis.impacted_objects[0].pt_object.trip.name;
       if (results.has(trainNumber)) {
         results.get(trainNumber).set("disruption", dis.messages[0].text);
@@ -228,15 +230,17 @@ function extractAPIInfos(jsons_data) {
 // get map of train number with useful infos
 function extractGECInfos(json_data) {
   const results = new Map();
-  $.each(json_data, function(i, dep) {
-    result = new Map([["btime", dep.scheduledTime],
-                      ["atime", dep.actualTime],
-                      ["track", dep.platform.track],
-                      ["dest",  dep.traffic.destination],
-                      ["station", dep.uic],
-                      ["mode", dep.trainMode],
-                      ["status", dep.informationStatus.trainStatus],
-                      ["delay", dep.informationStatus.delay]]);
+  json_data.forEach(dep => {
+    const result = new Map([
+      ["btime", dep.scheduledTime],
+      ["atime", dep.actualTime],
+      ["track", dep.platform.track],
+      ["dest",  dep.traffic.destination],
+      ["station", dep.uic],
+      ["mode", dep.trainMode],
+      ["status", dep.informationStatus.trainStatus],
+      ["delay", dep.informationStatus.delay]
+    ]);
     if (dep.trainMode != "TRAIN") {
       result.set("disruption", dep.trainMode);
     }
@@ -428,35 +432,35 @@ function displayDeparturesGEC(data, direction_excludes) {
 
 function format_title(level, innerHTML, suffix = "")
 {
-  let table = document.getElementById('tabletime' + suffix);
-  let tr = table.insertRow(-1);
-  let th = document.createElement('th');
+  const table = document.getElementById('tabletime' + suffix);
+  const tr = table.insertRow(-1);
+  const th = document.createElement('th');
   th.setAttribute('colSpan', '4');
   th.innerHTML = innerHTML;
-  if (level == 1)
-    th.setAttribute('class', 'section');
-  else
-    th.setAttribute('class', 'station');
+  th.setAttribute('class', level === 1 ? 'section' : 'station');
   tr.appendChild(th);
 }
 
 function format_station(station, link, results, suffix = "")
 {
-  let table = document.getElementById('tabletime' + suffix);
-  link_html = ' <a href="' + link + '" download="' + station + '_' + formatDateFile(now) + '.json">[1]</a>';
-  format_title(2, station + ((advanced && link != "") ? link_html : ''), suffix);
+  const table = document.getElementById('tabletime' + suffix);
+  const link_html = advanced && link !== '' ? ` <a href="${link}" download="${station}_${formatDateFile(now)}.json">[1]</a>` : '';
+  format_title(2, station + link_html, suffix);
 
-  $.each(results, function(i, dep) {
+  results.forEach(dep => {
     let tr = table.insertRow(-1);
 
-    $.each(dep, function(j, entry) {
-      if (entry[1] == "disruption")
+    dep.forEach(entry => {
+      if (entry[1] === "disruption") {
         tr = table.insertRow(-1);
-      let td = tr.insertCell();
-      if (entry[1] == "disruption")
-        td.setAttribute('colSpan', '4')
-      if (entry[1] != "")
+      }
+      const td = tr.insertCell();
+      if (entry[1] === "disruption") {
+        td.setAttribute('colSpan', '4');
+      }
+      if (entry[1] !== "") {
         td.setAttribute('class', entry[1]);
+      }
       td.appendChild(document.createTextNode(entry[0]));
     });
   });
