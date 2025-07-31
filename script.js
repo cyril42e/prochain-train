@@ -69,8 +69,7 @@ function display(el) {
 ///##############################
 
 // fetch coordinates
-function fetchCoords(timeout)
-{
+function fetchCoords(timeout) {
   return new Promise((resolve, reject) => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: timeout });
@@ -108,7 +107,7 @@ async function fetchDeparturesAPI(lines_ids, station_id, count) {
       return response.json();
     })
     .catch(error => {
-      alert('[a ' + station_id + ' : ' + error.message + ']');
+      alert('[!a ' + station_id + ' : ' + error.message + ']');
       return null;
     });
   });
@@ -120,37 +119,45 @@ async function fetchDeparturesAPI(lines_ids, station_id, count) {
 
 // fetch json from GEC (GareEtConnexions.sncf)
 // another API, unofficial, that provides additional information
-async function fetchDeparturesGEC(station_id)
-{
+async function fetchDeparturesGEC(station_id) {
   // Url to retrieve departures
-  var departuresUrl = 'https://www.garesetconnexions.sncf/schedule-table/Departures/00' + station_id;
+  var departuresUrl = encodeURIComponent('https://www.garesetconnexions.sncf/schedule-table/Departures/00' + station_id);
   const cors_proxy = "https://api.allorigins.win/raw?url=";
 
-  // Call API
-  try {
-    const response = await fetch(cors_proxy + encodeURIComponent(departuresUrl), {
-      method: 'GET',
-      cache: "no-cache",
-      headers: {
-        'Content-Type': 'application/json'
+  // Call API with retry
+  const attempt_count = 3;
+  for (let attempt = 1; attempt <= attempt_count; attempt++) {
+    try {
+      const response = await fetch(cors_proxy + departuresUrl, {
+        method: 'GET',
+        cache: "no-cache",
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Request error: ' + response.status);
       }
-    });
 
-    if (!response.ok) {
-      throw new Error('Request error: ' + response.status);
+      const json_data = await response.json();
+      display('g');
+      return json_data;
+    } catch (error) {
+      if (attempt === attempt_count) {
+        display('[!g ' + station_id + ' : ' + error.message + ']');
+        return null;
+      } else {
+        display('[!g]');
+      }
+      // Wait for a short time before retrying
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
-
-    const json_data = await response.json();
-    display('g');
-    return json_data;
-  } catch (error) {
-    display('[g ' + station_id + ' : ' + error.message + ']');
   }
 }
 
 // fetch weather json from MeteoFrance
-async function fetchWeather(lat, lon)
-{
+async function fetchWeather(lat, lon) {
   // Url to retrieve weather
   const token = config.meteofrance_token;
   rainUrl = 'https://webservice.meteofrance.com/v3/rain/?lat=' + lat + '&lon=' + lon + '&token=' + token;
@@ -173,7 +180,7 @@ async function fetchWeather(lat, lon)
     display('w');
     return json_data;
   } catch (error) {
-    display('[w ' + error.message + ']');
+    display('[!w ' + error.message + ']');
   }
 }
 
