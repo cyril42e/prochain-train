@@ -121,14 +121,15 @@ async function fetchDeparturesAPI(lines_ids, station_id, count) {
 // another API, unofficial, that provides additional information
 async function fetchDeparturesGEC(station_id) {
   // Url to retrieve departures
-  var departuresUrl = encodeURIComponent('https://www.garesetconnexions.sncf/schedule-table/Departures/00' + station_id);
-  const cors_proxy = "https://api.allorigins.win/raw?url=";
+  var departuresUrl = 'www.garesetconnexions.sncf/schedule-table/Departures/00' + station_id;
+  const cors_proxy = "/corsproxy/";
+  const cors_proxy_vars = "?key=" + config.corsproxy_token;
 
   // Call API with retry
   const attempt_count = 3;
   for (let attempt = 1; attempt <= attempt_count; attempt++) {
     try {
-      const response = await fetch(cors_proxy + departuresUrl, {
+      const response = await fetch(cors_proxy + departuresUrl + cors_proxy_vars, {
         method: 'GET',
         cache: "no-cache",
         headers: {
