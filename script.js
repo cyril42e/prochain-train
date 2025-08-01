@@ -227,7 +227,8 @@ function extractAPIInfos(jsons_data) {
     json_data.disruptions.forEach(dis => {
       const trainNumber = dis.impacted_objects[0].pt_object.trip.name;
       if (results.has(trainNumber)) {
-        results.get(trainNumber).set("disruption", dis.messages[0].text);
+        const message = dis.messages ? dis.messages[0].text : "?";
+        results.get(trainNumber).set("disruption", message);
       }
     });
   });
