@@ -543,8 +543,7 @@ const count_request = count_display*4;
 const advanced = params.get('advanced') == 1 ? true : false;
 const invert = params.get('invert') == 1 ? true : false;
 const farThreshold = 20.0;
-const fastTimeout = 300; // 200
-const slowTimeout = 3000; // 3000
+const locationTimeout = params.has('lt') ? parseInt(params.get('lt')) : 300;
 
 let coords = [];
 coords.push(['sm'].concat(params.get('rcm').split(',')));
@@ -565,101 +564,114 @@ for (const slot of ['m', 'e']) {
   }
 }
 
-async function processCoords(promise, type, whenSuccess, whenFar, whenTimeout, whenError) {
+// Fetch all data types in parallel for given coordinates and stations
+async function fetchAllData(coords, targetStations, includeAPI = true, includeGEC = true, includeWeather = true) {
+  // Create all promises (starts execution immediately)
+  let promisesAPI = [], promisesGEC = [], promiseWeather = null  
+  if (includeAPI && targetStations.length > 0) {
+    promisesAPI = targetStations.map(station => fetchDeparturesAPI(station[2].split(';'), station[1], count_request));
+  }
+  if (includeGEC && targetStations.length > 0) {
+    promisesGEC = targetStations.map(station => fetchDeparturesGEC(station[1]));
+  }
+  if (includeWeather) {
+    promiseWeather = fetchWeather(coords[1], coords[2]);
+  }
+  
+  // Wait for results (execution was already parallel)
+  let resultsAPI = [], resultsGEC = [], resultWeather = null;
+  if (promisesAPI.length > 0) {
+    resultsAPI = await Promise.all(promisesAPI);
+  }
+  if (promisesGEC.length > 0) {
+    resultsGEC = await Promise.all(promisesGEC);
+  }
+  if (promiseWeather) {
+    resultWeather = await promiseWeather;
+  }
+  
+  return { resultsAPI, resultsGEC, resultWeather };
+}
+
+async function processCoords(promise, type, timeout, stations) {
   const errors = ['Success', 'Denied', 'Unavailable', 'Timeout'];
-  let dataCoords, pendingCoords = false;
+  let dataCoords, pendingCoords = false, filteredStations = [];
+  const filterStations = (dataCoords) => { filteredStations = stations.filter((station) => station[0] == dataCoords[0]); };
   try {
     display(`Trying ${type} coordinates... `);
-    const resultCoords = await withTimeout(promise, fastTimeout);
+    const resultCoords = await withTimeout(promise, timeout);
     dataCoords = extractCoords(resultCoords);
     if (resultCoords) {
       // fetch coordinates succeeded
       display(`Success ${dataCoords[1]},${dataCoords[2]}`);
       if (dataCoords[0] == '')
-        whenFar(dataCoords);
+        filteredStations = [];
       else
-        whenSuccess(dataCoords);
+        filterStations(dataCoords);
     } else {
-      // fetch cordinates had timeout (fetch all stations)
+      // fetch coordinates had timeout
       pendingCoords = true;
       display(`Timeout`);
-      whenTimeout(dataCoords);
+      filterStations(dataCoords);
     }
   } catch(error) {
     // fetch coordinates failed
     dataCoords = extractCoords(null);
-    display(`Failure (${errors[error.code]})`);
-    whenError(dataCoords);
+    display(`Failure (${errors[error.code] || error.message})`);
+    pendingCoords = error.code == 3; // 3 = Timeout
+    filterStations(dataCoords);
   }
-  return [dataCoords, pendingCoords];
+  return [dataCoords, pendingCoords, filteredStations];
 }
 
-
-
 async function displayStations() {
-  // fetch coordinates
-  // start geolocation
-  const promiseCoords = fetchCoords(slowTimeout);
+  // start geolocation (with safety timeout)
+  const promiseCoords = fetchCoords(10000); // 10 seconds
+  
+  // First let's see if we get location within user timeout
+  let [coords, pendingCoords, filteredStations] = await processCoords(promiseCoords, "fast", locationTimeout, stations);
 
-  // first let's see if we have very fast geolocation
-  const filterStationsSlot = (dataCoords) => { stations = stations.filter((station) => station[0] == dataCoords[0]); };
-  let [dataCoords, pendingCoords] = await processCoords(promiseCoords, "fast",
-    filterStationsSlot, // whenSuccess
-    (dataCoords) => { stations = []; }, // whenFar
-    (dataCoords) => { }, // whenTimeout
-    filterStationsSlot // whenError
-  );
-
-  // fetch them all asynchronously but get them in the same order
-  display(document.createElement("br"));
-  display("Fetching data... ");
-  const promisesAPI = stations.map(station => fetchDeparturesAPI(station[2].split(';'), station[1], count_request));
-  const promisesGEC = stations.map(station => fetchDeparturesGEC(station[1]));
-  let promisesWeather = coords.map(coord => fetchWeather(coord[1], coord[2]));
-
+  // Fetch data for the determined location (actual or guessed)
   try {
-    let resultsAPI = await Promise.all(promisesAPI);
-    let resultsGEC = await Promise.all(promisesGEC);
-    let resultsWeather = await Promise.all(promisesWeather);
+    display(document.createElement("br"));
+    display(`Fetching data... `);
+    let { resultsAPI, resultsGEC, resultWeather } = await fetchAllData(coords, filteredStations);
     display(" Finished");
 
-    // check again coordinates if necessary (but still don't wait)
+    // If location was pending, check if actual location arrived and differs
     if (pendingCoords) {
       display(document.createElement("br"));
-      const filterResultsSlot = (dataCoords) => {
-        resultsAPI = resultsAPI.filter((result, i) => stations[i][0] == dataCoords[0]);
-        resultsGEC = resultsGEC.filter((result, i) => stations[i][0] == dataCoords[0]);
-        stations = stations.filter((station) => station[0] == dataCoords[0]);
-        resultsWeather = resultsWeather.filter((result, i) => coords[i][0] == dataCoords[0]); };
-      [dataCoords, pendingCoords] = await processCoords(promiseCoords, "final",
-        filterResultsSlot, // whenSuccess
-        (dataCoords) => { promisesWeather = [fetchWeather(dataCoords[1], dataCoords[2])];
-                          resultsAPI = [];
-                          resultsGEC = []; }, // whenFar
-        filterResultsSlot, // whenTimeout
-        filterResultsSlot // whenError
-      );
+      let firstCoords = coords;
+      [coords, pendingCoords, filteredStations] = await processCoords(promiseCoords, "final", 0, stations);
+      if (coords[0] !== firstCoords[0]) {
+          // location guess was wrong, need to fetch correct data
+          display(document.createElement("br"));
+          display("Fetching correct data... ");
+          if (coords[0] !== '') {
+            // actual location is near a known station, fetch all data types in parallel
+            ({resultsAPI, resultsGEC, resultWeather} = await fetchAllData(coords, filteredStations));
+          } else {
+            // actual location is far from known stations, only fetch weather
+            ({resultsAPI, resultsGEC, resultWeather} = await fetchAllData(coords, [], false, false, true));
+          }
+          display(" Finished");
+        }
     }
 
+    // process and display results
     const all_dataAPI = resultsAPI.map(json_data => extractAPIInfos(json_data));
     const all_dataGEC = resultsGEC.map(json_data => extractGECInfos(json_data));
     const all_dataMerged = all_dataAPI.map((dataAPI, index) => {
       const dataGEC = all_dataGEC[index];
       return mergeInfos(dataAPI, dataGEC);
     });
+    
     format_title(1, "Prochains trains à " + formatTimeHMS(now));
-
-    all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, stations[index][3], count_display, advanced));
+    all_dataMerged.forEach((dataMerged, index) => displayDepartures(dataMerged, filteredStations[index][3], count_display, advanced));
     if (advanced)
       all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null));
 
-    if (dataCoords[0] == '') {
-      display(document.createElement("br"));
-      display("Fetching new weather... ");
-      resultsWeather = [await promisesWeather[0]];
-      display("Success");
-    }
-    const dataWeather = extractWeatherInfos(resultsWeather[0]);
+    const dataWeather = extractWeatherInfos(resultWeather);
     displayWeather(dataWeather);
 
     if (!advanced)
