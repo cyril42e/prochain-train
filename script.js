@@ -147,11 +147,9 @@ async function fetchDeparturesGEC(station_id) {
       display('g');
       return json_data;
     } catch (error) {
+      display('[!g ' + station_id + ' : ' + error.message + ']');
       if (attempt === attempt_count) {
-        display('[!g ' + station_id + ' : ' + error.message + ']');
         return null;
-      } else {
-        display('[!g]');
       }
       // Wait for a short time before retrying
       await new Promise(resolve => setTimeout(resolve, 500));
