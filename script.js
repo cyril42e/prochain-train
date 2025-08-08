@@ -58,9 +58,11 @@ async function withTimeout(promise, timeout) {
   }
 }
 
+// Cache DOM elements - initialized when script loads
+const statusElement = document.getElementById('status');
+
 function display(el) {
-  let status = document.getElementById('status');
-  status.append(el);
+  statusElement.append(el);
 }
 
 
@@ -191,7 +193,7 @@ async function fetchWeather(lat, lon) {
 ///##############################
 
 // get map of train number with useful infos
-function extractCoords(position) {
+function extractCoords(position, coords) {
   if (position) {
     const lat = position.coords.latitude;
     const lon = position.coords.longitude;
@@ -274,14 +276,14 @@ function extractWeatherInfos(json_data) {
 
 function mergeInfos(dataAPI, dataGEC) {
   function mergeContent(contentAPI, contentGEC) {
-    result = contentAPI;
+    let result = contentAPI;
     for (const key of ["track", "status", "delay"]) {
       result.set(key, contentGEC.get(key));
     }
     if (contentGEC.get("track") == null) {
       result.set("track", "?");
     }
-    gec_atime = convertTimeGECtoAPI(contentGEC.get("atime"));
+    const gec_atime = convertTimeGECtoAPI(contentGEC.get("atime"));
     if (contentAPI.get("atime").localeCompare(gec_atime)) {
       result.set("atime", gec_atime);
     }
@@ -313,7 +315,7 @@ function mergeInfos(dataAPI, dataGEC) {
   // browse dataGEC for orphans (that have same destination than in API), and add them
   for (const [trainNumber, contentGEC] of dataGEC[0].entries()) {
     if (!dataAPI[0].has(trainNumber) && listDest.has(contentGEC.get("dest"))) {
-      result = new Map();
+      let result = new Map();
       for (const [key, value] of contentGEC) {
         if (key == "btime" || key == "atime") {
           result.set(key, convertTimeGECtoAPI(value));
@@ -368,10 +370,10 @@ function displayDepartures(data, direction_excludes, count, advanced) {
     // add departure
     if (right_direction && (ndisp < count))
     {
-      delay = (dep.get("atime") != dep.get("btime")); // could use ad.get("delay") too
-      suppressed = ((dep.get("status") || "").toLowerCase().indexOf("suppress") != -1);
-      cr = suppressed ? "real_suppressed" : (delay ? "real_delay" : "real_normal");
-      cs = (suppressed || delay) ? "scheduled_delay" : "scheduled_normal";
+      const delay = (dep.get("atime") != dep.get("btime")); // could use ad.get("delay") too
+      const suppressed = ((dep.get("status") || "").toLowerCase().indexOf("suppress") != -1);
+      const cr = suppressed ? "real_suppressed" : (delay ? "real_delay" : "real_normal");
+      const cs = (suppressed || delay) ? "scheduled_delay" : "scheduled_normal";
 
       const result = [[getTimeAPI(dep.get("atime")), cr],
                       [getTimeAPI(dep.get("btime")), cs],
@@ -542,7 +544,7 @@ const count_display = params.has('count') ? params.get('count') : 3;
 const count_request = count_display*4;
 const advanced = params.get('advanced') == 1 ? true : false;
 const invert = params.get('invert') == 1 ? true : false;
-const farThreshold = 20.0;
+const farThreshold = 20.0; // distance in km to consider the user far from known stations and fetch weather only
 const locationTimeout = params.has('lt') ? parseInt(params.get('lt')) : 300;
 
 let coords = [];
@@ -600,7 +602,7 @@ async function processCoords(promise, type, timeout, stations) {
   try {
     display(`Trying ${type} coordinates... `);
     const resultCoords = await withTimeout(promise, timeout);
-    dataCoords = extractCoords(resultCoords);
+    dataCoords = extractCoords(resultCoords, coords);
     if (resultCoords) {
       // fetch coordinates succeeded
       display(`Success ${dataCoords[1]},${dataCoords[2]}`);
@@ -616,7 +618,7 @@ async function processCoords(promise, type, timeout, stations) {
     }
   } catch(error) {
     // fetch coordinates failed
-    dataCoords = extractCoords(null);
+    dataCoords = extractCoords(null, coords);
     display(`Failure (${errors[error.code] || error.message})`);
     pendingCoords = error.code == 3; // 3 = Timeout
     filterStations(dataCoords);
@@ -674,8 +676,9 @@ async function displayStations() {
     const dataWeather = extractWeatherInfos(resultWeather);
     displayWeather(dataWeather);
 
-    if (!advanced)
-      status.innerHTML = "";
+    if (!advanced) {
+      statusElement.innerHTML = "";
+    }
 
   } catch (error) {
     display(`Error (${error.message})`);
