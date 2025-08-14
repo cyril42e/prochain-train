@@ -214,24 +214,26 @@ function extractCoords(position, coords) {
 // get map of train number with useful infos
 function extractAPIInfos(jsons_data) {
   const results = new Map();
-  jsons_data.forEach(json_data => {
-    json_data.departures.forEach(dep => {
-      const result = new Map([
-        ["btime", dep.stop_date_time.base_departure_date_time],
-        ["atime", dep.stop_date_time.departure_date_time],
-        ["dest", dep.display_informations.direction.replace(/ \(.*/g, "")],
-        ["station", dep.stop_point.name]
-      ]);
-      results.set(dep.display_informations.headsign, result);
+  if (jsons_data) {
+    jsons_data.forEach(json_data => {
+      json_data.departures.forEach(dep => {
+        const result = new Map([
+          ["btime", dep.stop_date_time.base_departure_date_time],
+          ["atime", dep.stop_date_time.departure_date_time],
+          ["dest", dep.display_informations.direction.replace(/ \(.*/g, "")],
+          ["station", dep.stop_point.name]
+        ]);
+        results.set(dep.display_informations.headsign, result);
+      });
+      json_data.disruptions.forEach(dis => {
+        const trainNumber = dis.impacted_objects[0].pt_object.trip.name;
+        if (results.has(trainNumber)) {
+          const message = dis.messages ? dis.messages[0].text : "?";
+          results.get(trainNumber).set("disruption", message);
+        }
+      });
     });
-    json_data.disruptions.forEach(dis => {
-      const trainNumber = dis.impacted_objects[0].pt_object.trip.name;
-      if (results.has(trainNumber)) {
-        const message = dis.messages ? dis.messages[0].text : "?";
-        results.get(trainNumber).set("disruption", message);
-      }
-    });
-  });
+  }
   return [results, jsons_data];
 }
 
@@ -239,22 +241,25 @@ function extractAPIInfos(jsons_data) {
 // get map of train number with useful infos
 function extractGECInfos(json_data) {
   const results = new Map();
-  json_data.forEach(dep => {
-    const result = new Map([
-      ["btime", dep.scheduledTime],
-      ["atime", dep.actualTime],
-      ["track", dep.platform.track],
-      ["dest",  dep.traffic.destination],
-      ["station", dep.uic],
-      ["mode", dep.trainMode],
-      ["status", dep.informationStatus.trainStatus],
-      ["delay", dep.informationStatus.delay]
-    ]);
-    if (dep.trainMode != "TRAIN") {
-      result.set("disruption", dep.trainMode);
-    }
-    results.set(dep.trainNumber, result);
-  });
+  
+  if (json_data) {
+    json_data.forEach(dep => {
+      const result = new Map([
+        ["btime", dep.scheduledTime],
+        ["atime", dep.actualTime],
+        ["track", dep.platform.track],
+        ["dest",  dep.traffic.destination],
+        ["station", dep.uic],
+        ["mode", dep.trainMode],
+        ["status", dep.informationStatus.trainStatus],
+        ["delay", dep.informationStatus.delay]
+      ]);
+      if (dep.trainMode != "TRAIN") {
+        result.set("disruption", dep.trainMode);
+      }
+      results.set(dep.trainNumber, result);
+    });
+  }
   return [results, json_data];
 }
 
@@ -274,7 +279,7 @@ function extractWeatherInfos(json_data) {
 
 function mergeInfos(dataAPI, dataGEC) {
   function mergeContent(contentAPI, contentGEC) {
-    let result = contentAPI;
+    let result = new Map(contentAPI); // Create a copy of contentAPI
     for (const key of ["track", "status", "delay"]) {
       result.set(key, contentGEC.get(key));
     }
@@ -296,34 +301,44 @@ function mergeInfos(dataAPI, dataGEC) {
   const jsonDataMap = new Map();
   const listDest = new Set();
   let station = "";
+  
+  // Check if GEC data is available (not null/empty)
+  const hasGECData = dataGEC && dataGEC[0] && dataGEC[0].size > 0;
+  const hasAPIData = dataAPI && dataAPI[0] && dataAPI[0].size > 0;
 
   // browse dataAPI and merge content if in both (and build list of destinations)
-  for (const [trainNumber, contentAPI] of dataAPI[0].entries()) {
-    listDest.add(contentAPI.get("dest"));
-    station = contentAPI.get("station");
-    if (dataGEC[0].has(trainNumber)) {
-      const contentGEC = dataGEC[0].get(trainNumber);
-      const mergedContent = mergeContent(contentAPI, contentGEC);
-      mergedMap.set(trainNumber, mergedContent);
-    } else {
-      mergedMap.set(trainNumber, contentAPI);
+  if (hasAPIData) {
+    for (const [trainNumber, contentAPI] of dataAPI[0].entries()) {
+      listDest.add(contentAPI.get("dest"));
+      station = contentAPI.get("station");
+      if (hasGECData && dataGEC[0].has(trainNumber)) {
+        const contentGEC = dataGEC[0].get(trainNumber);
+        const mergedContent = mergeContent(contentAPI, contentGEC);
+        mergedMap.set(trainNumber, mergedContent);
+      } else {
+        let result = new Map(contentAPI);
+        result.set("track", hasGECData ? "" : "#");
+        mergedMap.set(trainNumber, result);
+      }
     }
   }
 
   // browse dataGEC for orphans (that have same destination than in API), and add them
-  for (const [trainNumber, contentGEC] of dataGEC[0].entries()) {
-    if (!dataAPI[0].has(trainNumber) && listDest.has(contentGEC.get("dest"))) {
-      let result = new Map();
-      for (const [key, value] of contentGEC) {
-        if (key == "btime" || key == "atime") {
-          result.set(key, convertTimeGECtoAPI(value));
-        } else if (key == "station") {
-          result.set(key, station);
-        } else {
-          result.set(key, value);
+  if (hasGECData) {
+    for (const [trainNumber, contentGEC] of dataGEC[0].entries()) {
+      if (!dataAPI[0].has(trainNumber) && listDest.has(contentGEC.get("dest"))) {
+        let result = new Map();
+        for (const [key, value] of contentGEC) {
+          if (key == "btime" || key == "atime") {
+            result.set(key, convertTimeGECtoAPI(value));
+          } else if (key == "station") {
+            result.set(key, station);
+          } else {
+            result.set(key, value);
+          }
         }
+        mergedMap.set(trainNumber, result);
       }
-      mergedMap.set(trainNumber, result);
     }
   }
 
@@ -337,7 +352,7 @@ function mergeInfos(dataAPI, dataGEC) {
   // merge json_data
   const mergedJsonData = {
     "api.sncf.com": dataAPI[1],
-    "garesetconnexions.sncf": dataGEC[1]
+    "garesetconnexions.sncf": dataGEC ? dataGEC[1] : null
   };
 
   return [sortedMergedMap, mergedJsonData];
@@ -350,6 +365,9 @@ function mergeInfos(dataAPI, dataGEC) {
 
 // Displays departures
 function displayDepartures(data, direction_excludes, count, advanced) {
+  if (!data || !data[0]) {
+    return;
+  }
   let ndisp = 0;
   let station = "";
   const results = [];
@@ -400,6 +418,9 @@ function displayDepartures(data, direction_excludes, count, advanced) {
 
 // Display departures with GEC API for comparison purpose
 function displayDeparturesGEC(data, direction_excludes) {
+  if (!data || !data[0]) {
+    return;
+  }
   const results = [];
   let station = "";
   for (const [key, dep] of data[0]) {
@@ -644,18 +665,18 @@ async function displayStations() {
       let firstCoords = coords;
       [coords, pendingCoords, filteredStations] = await processCoords(promiseCoords, "final", 0, stations);
       if (coords[0] !== firstCoords[0]) {
-          // location guess was wrong, need to fetch correct data
-          display(document.createElement("br"));
-          display("Fetching correct data... ");
-          if (coords[0] !== '') {
-            // actual location is near a known station, fetch all data types in parallel
-            ({resultsAPI, resultsGEC, resultWeather} = await fetchAllData(coords, filteredStations));
-          } else {
-            // actual location is far from known stations, only fetch weather
-            ({resultsAPI, resultsGEC, resultWeather} = await fetchAllData(coords, [], false, false, true));
-          }
-          display(" Finished");
+        // location guess was wrong, need to fetch correct data
+        display(document.createElement("br"));
+        display("Fetching correct data... ");
+        if (coords[0] !== '') {
+          // actual location is near a known station, fetch all data types in parallel
+          ({resultsAPI, resultsGEC, resultWeather} = await fetchAllData(coords, filteredStations));
+        } else {
+          // actual location is far from known stations, only fetch weather
+          ({resultsAPI, resultsGEC, resultWeather} = await fetchAllData(coords, [], false, false, true));
         }
+        display(" Finished");
+      }
     }
 
     // process and display results
