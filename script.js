@@ -58,6 +58,30 @@ async function withTimeout(promise, timeout) {
   }
 }
 
+// Generic retry mechanism for API calls
+async function fetchWithRetry(fetchFunction, errorContext, id, attemptCount = 3, retryDelay = 500) {
+  for (let attempt = 1; attempt <= attemptCount; attempt++) {
+    try {
+      const response = await fetchFunction();
+      
+      if (!response.ok) {
+        throw new Error('Request error: ' + response.status);
+      }
+
+      const json_data = await response.json();
+      display(id);
+      return json_data;
+    } catch (error) {
+      display(`[!${id} ${errorContext}: ${error.message}]`);
+      if (attempt === attemptCount) {
+        return null;
+      }
+      // Wait for a short time before retrying
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+    }
+  }
+}
+
 // Cache DOM elements - initialized when script loads
 const statusElement = document.getElementById('status');
 
@@ -82,38 +106,33 @@ function fetchCoords(timeout) {
 }
 
 
-// fetch json from official public API
-async function fetchDeparturesAPI(lines_ids, station_id, count) {
+// fetch json from official public API for single line
+async function fetchDeparturesAPILine(line_id, station_id, count) {
   const token = config.sncf_token;
+  const full_line_id = 'line:SNCF:FR:Line::' + line_id + ':';
+  const full_station_id = 'stop_area:SNCF:' + station_id;
 
-  const promises = lines_ids.map(line_id => {
-    const full_line_id = 'line:SNCF:FR:Line::' + line_id + ':';
-    const full_station_id = 'stop_area:SNCF:' + station_id;
+  // Url to retrieve departures
+  const departuresUrl = 'https://api.sncf.com/v1/coverage/sncf/stop_areas/' + full_station_id + '/lines/' + full_line_id + '/departures?count=' + count;
 
-    // Url to retrieve departures
-    const departuresUrl = 'https://api.sncf.com/v1/coverage/sncf/stop_areas/' + full_station_id + '/lines/' + full_line_id + '/departures?count=' + count;
-
-    return fetch(departuresUrl, {
+  return await fetchWithRetry(
+    () => fetch(departuresUrl, {
       method: 'GET',
       cache: "no-cache",
       headers: {
         'Authorization': 'Basic ' + btoa(token),
         'Content-Type': 'application/json'
       }
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Request error: ' + response.status);
-      }
-      display('a');
-      return response.json();
-    })
-    .catch(error => {
-      alert('[!a ' + station_id + ' : ' + error.message + ']');
-      return null;
-    });
-  });
+    }),
+    station_id,
+    'a',
+    retryCount
+  );
+}
 
+// fetch json from official public API for all lines of a station
+async function fetchDeparturesAPI(lines_ids, station_id, count) {
+  const promises = lines_ids.map(line_id => fetchDeparturesAPILine(line_id, station_id, count));
   const results = await Promise.all(promises);
   return results.filter(result => result !== null);
 }
@@ -127,34 +146,18 @@ async function fetchDeparturesGEC(station_id) {
   const cors_proxy = "/corsproxy/";
   const cors_proxy_vars = "?key=" + config.corsproxy_token;
 
-  // Call API with retry
-  const attempt_count = 3;
-  for (let attempt = 1; attempt <= attempt_count; attempt++) {
-    try {
-      const response = await fetch(cors_proxy + departuresUrl + cors_proxy_vars, {
-        method: 'GET',
-        cache: "no-cache",
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Request error: ' + response.status);
+  return await fetchWithRetry(
+    () => fetch(cors_proxy + departuresUrl + cors_proxy_vars, {
+      method: 'GET',
+      cache: "no-cache",
+      headers: {
+        'Content-Type': 'application/json'
       }
-
-      const json_data = await response.json();
-      display('g');
-      return json_data;
-    } catch (error) {
-      display('[!g ' + station_id + ' : ' + error.message + ']');
-      if (attempt === attempt_count) {
-        return null;
-      }
-      // Wait for a short time before retrying
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-  }
+    }),
+    station_id,
+    'g',
+    retryCount
+  );
 }
 
 // fetch weather json from MeteoFrance
@@ -163,26 +166,18 @@ async function fetchWeather(lat, lon) {
   const token = config.meteofrance_token;
   rainUrl = 'https://webservice.meteofrance.com/v3/rain/?lat=' + lat + '&lon=' + lon + '&token=' + token;
 
-  // Call API
-  try {
-    const response = await fetch(rainUrl, {
+  return await fetchWithRetry(
+    () => fetch(rainUrl, {
       method: 'GET',
       cache: "no-cache",
       headers: {
         'Content-Type': 'application/json'
       }
-    });
-
-    if (!response.ok) {
-      throw new Error('Request error: ' + response.status);
-    }
-
-    const json_data = await response.json();
-    display('w');
-    return json_data;
-  } catch (error) {
-    display('[!w ' + error.message + ']');
-  }
+    }),
+    '',
+    'w',
+    retryCount
+  );
 }
 
 
@@ -266,7 +261,7 @@ function extractGECInfos(json_data) {
 
 // get vector of rain forecast
 function extractWeatherInfos(json_data) {
-  const results = (json_data.properties.rain_product_available != 1)
+  const results = (!json_data || json_data.properties.rain_product_available != 1)
     ? [0, 0, 0, 0, 0, 0, 0, 0, 0]
     : json_data.properties.forecast.map(fc => fc.rain_intensity);
   return [results, json_data];
@@ -536,8 +531,10 @@ function displayWeather(data)
 
   for (const [i, value] of data[0].entries()) {
     let td = document.createElement("td");
-    //let text = document.createTextNode("x");
-    //td.appendChild(text);
+    if (value == 0) {
+      let text = document.createTextNode("?");
+      td.appendChild(text);
+    }
     if (i >= 6) {
       td.setAttribute('colSpan', '2');
     }
@@ -565,6 +562,7 @@ const advanced = params.get('advanced') == 1 ? true : false;
 const invert = params.get('invert') == 1 ? true : false;
 const farThreshold = 20.0; // distance in km to consider the user far from known stations and fetch weather only
 const locationTimeout = params.has('lt') ? parseInt(params.get('lt')) : 300;
+const retryCount = params.has('retry') ? parseInt(params.get('retry')) : 3;
 
 let coords = [];
 coords.push(['sm'].concat(params.get('rcm').split(',')));
