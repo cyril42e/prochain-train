@@ -37,6 +37,24 @@ function dist(lat1, lon1, lat2, lon2) { // in km
   return Math.sqrt((lat1-lat2)**2 + ((lon1-lon2)*Math.cos(lat1*Math.PI/180.))**2)*(40000./360.);
 }
 
+function getWindDirectionArrow(degrees) {
+  if (degrees === null || degrees === undefined) return '';
+  
+  // Normalize degrees to 0-360 range
+  degrees = ((degrees % 360) + 360) % 360;
+  
+  // Convert to 8-direction compass with arrows pointing in wind direction
+  if (degrees >= 337.5 || degrees < 22.5) return '↓';   // N (~0°, wind from north, blowing south)
+  if (degrees >= 22.5 && degrees < 67.5) return '↙';    // NE (~45)
+  if (degrees >= 67.5 && degrees < 112.5) return '←';   // E (~90°, wind from east, blowing west)
+  if (degrees >= 112.5 && degrees < 157.5) return '↖';  // SE (~135°)
+  if (degrees >= 157.5 && degrees < 202.5) return '↑';  // S (~180°, wind from south, blowing north)
+  if (degrees >= 202.5 && degrees < 247.5) return '↗';  // SW (~225°)
+  if (degrees >= 247.5 && degrees < 292.5) return '→';  // W (~270°, wind from west, blowing east)
+  if (degrees >= 292.5 && degrees < 337.5) return '↘';  // NW (~315°)
+  return '';
+}
+
 async function withTimeout(promise, timeout) {
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
@@ -160,8 +178,8 @@ async function fetchDeparturesGEC(station_id) {
   );
 }
 
-// fetch weather json from MeteoFrance
-async function fetchWeather(lat, lon) {
+// fetch rain json from MeteoFrance
+async function fetchRain(lat, lon) {
   // Url to retrieve weather
   const token = config.meteofrance_token;
   rainUrl = 'https://webservice.meteofrance.com/v3/rain/?lat=' + lat + '&lon=' + lon + '&token=' + token;
@@ -175,7 +193,27 @@ async function fetchWeather(lat, lon) {
       }
     }),
     '',
-    'w',
+    'r',
+    retryCount
+  );
+}
+
+// fetch temperature and wind json from MeteoFrance
+async function fetchTemperature(lat, lon) {
+  // Url to retrieve temperature and wind data
+  const token = config.meteofrance_token;
+  const temperatureUrl = 'https://webservice.meteofrance.com/v2/observation/?lat=' + lat + '&lon=' + lon + '&token=' + token;
+
+  return await fetchWithRetry(
+    () => fetch(temperatureUrl, {
+      method: 'GET',
+      cache: "no-cache",
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }),
+    '',
+    't',
     retryCount
   );
 }
@@ -260,10 +298,26 @@ function extractGECInfos(json_data) {
 
 
 // get vector of rain forecast
-function extractWeatherInfos(json_data) {
-  const results = (!json_data || json_data.properties.rain_product_available != 1)
-    ? [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    : json_data.properties.forecast.map(fc => fc.rain_intensity);
+function extractRainInfos(json_data) {
+  const results = new Map();
+  if (json_data && json_data.properties && json_data.properties.rain_product_available == 1) {
+    results.set("rain_forecast", json_data.properties.forecast.map(fc => fc.rain_intensity));
+    results.set("rain_time", json_data.properties.forecast[0].time);
+    results.set("rain_location", json_data.properties.name);
+  }
+  return [results, json_data];
+}
+
+// get temperature and wind data
+function extractTemperatureInfos(json_data) {
+  const results = new Map();
+  if (json_data && json_data.properties && json_data.properties.gridded) {
+    const gridded = json_data.properties.gridded;
+    results.set("temperature", gridded.T);
+    results.set("wind_speed", gridded.wind_speed * 3.6); // m/s to km/h
+    results.set("wind_direction", gridded.wind_direction);
+    results.set("temperature_time", gridded.time);
+  }
   return [results, json_data];
 }
 
@@ -272,7 +326,21 @@ function extractWeatherInfos(json_data) {
 /// Merge infos from json
 ///##############################
 
-function mergeInfos(dataAPI, dataGEC) {
+// merge rain and temperature data
+function mergeWeather(rainData, temperatureData) {
+  const mergedData = new Map();
+  rainData[0].forEach((value, key) => mergedData.set(key, value));
+  temperatureData[0].forEach((value, key) => mergedData.set(key, value));
+
+  const mergedJsonData = {
+    rain: rainData[1],
+    temperature: temperatureData[1]
+  };
+  
+  return [mergedData, mergedJsonData];
+}
+
+function mergeDepartures(dataAPI, dataGEC) {
   function mergeContent(contentAPI, contentGEC) {
     let result = new Map(contentAPI); // Create a copy of contentAPI
     for (const key of ["track", "status", "delay"]) {
@@ -498,27 +566,57 @@ function format_station(station, link, results, suffix = "")
 function displayWeather(data)
 {
   // section title
-  let datebegin = new Date(data[1].properties.forecast[0].time);
-  datebegin.setMinutes(datebegin.getMinutes() - 5);
   var p = document.createElement('p');
-  p.appendChild(document.createTextNode("Pluie 1h @" + formatTimeHM(datebegin) + " @" + data[1].properties.name));
+  
+  // temperature subtitle
+  let titleText = "";
+  if (data[0].get("temperature") !== null && data[0].get("temperature") !== undefined) {
+    titleText += data[0].get("temperature") + " °C";
+  }
+  if (data[0].get("wind_speed") !== null && data[0].get("wind_speed") !== undefined) {
+    titleText += " " + data[0].get("wind_speed").toFixed(0) + " km/h ";
+  }
+  if (data[0].get("wind_direction") !== null && data[0].get("wind_direction") !== undefined) {
+    titleText += getWindDirectionArrow(data[0].get("wind_direction"));
+  }
+  if (data[0].get("temperature_time")) {
+    let datebegin = new Date(data[0].get("temperature_time"));
+    titleText += " @" + formatTimeHM(datebegin);
+  }
+
+  titleText += "<br/>";
+
+  // rain subtitle
+  titleText += "Pluie 1h";
+  if (data[0].get("rain_time")) {
+    let datebegin = new Date(data[0].get("rain_time"));
+    datebegin.setMinutes(datebegin.getMinutes() - 5);
+    titleText += " @" + formatTimeHM(datebegin);
+  }
+  
+  if (data[0].get("rain_location")) {
+    titleText += " @" + data[0].get("rain_location");
+  }
+  
+  p.innerHTML = titleText;
+  
+  // prepare download link
   if (advanced) {
-    // prepare download link
     p.appendChild(document.createTextNode(' '));
     const jsonString = JSON.stringify(data[1], null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     let a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'rain_' + data[1].properties.name + '_' + formatDateFile(now) + '.json';
+    a.download = 'weather_' + data[0].get("rain_location") + '_' + formatDateFile(now) + '.json';
     a.appendChild(document.createTextNode('[1]'));
     p.append(a);
   }
 
   format_title(1, p.innerHTML);
 
-  // display result
-  const colormap = { 0: "white", 1: "#f6f7d5", 2:"#bfe1f7", 3:"#81a4f7", 4:"blue" };
+  // display rain forecast
+  const colormap = { 1: "#f6f7d5", 2:"#bfe1f7", 3:"#81a4f7", 4:"blue" };
   let table = document.getElementById('tabletime');
 
   let tr = table.insertRow(-1);
@@ -529,16 +627,19 @@ function displayWeather(data)
   array.setAttribute('id', 'rain');
   let row = document.createElement("tr");
 
-  for (const [i, value] of data[0].entries()) {
+  if (data[0].get("rain_forecast")) {
+    for (const [i, value] of data[0].get("rain_forecast").entries()) {
+      let td = document.createElement("td");
+      if (i >= 6) {
+        td.setAttribute('colSpan', '2');
+      }
+      td.setAttribute('bgcolor', colormap[value]);
+      row.appendChild(td);
+    }
+  } else {
     let td = document.createElement("td");
-    if (value == 0) {
-      let text = document.createTextNode("?");
-      td.appendChild(text);
-    }
-    if (i >= 6) {
-      td.setAttribute('colSpan', '2');
-    }
-    td.setAttribute('bgcolor', colormap[value]);
+    let text = document.createTextNode("?");
+    td.appendChild(text);
     row.appendChild(td);
   }
 
@@ -586,7 +687,7 @@ for (const slot of ['m', 'e']) {
 // Fetch all data types in parallel for given coordinates and stations
 async function fetchAllData(coords, targetStations, includeAPI = true, includeGEC = true, includeWeather = true) {
   // Create all promises (starts execution immediately)
-  let promisesAPI = [], promisesGEC = [], promiseWeather = null  
+  let promisesAPI = [], promisesGEC = [], promiseRain = null, promiseTemperature = null  
   if (includeAPI && targetStations.length > 0) {
     promisesAPI = targetStations.map(station => fetchDeparturesAPI(station[2].split(';'), station[1], count_request));
   }
@@ -594,22 +695,26 @@ async function fetchAllData(coords, targetStations, includeAPI = true, includeGE
     promisesGEC = targetStations.map(station => fetchDeparturesGEC(station[1]));
   }
   if (includeWeather) {
-    promiseWeather = fetchWeather(coords[1], coords[2]);
+    promiseRain = fetchRain(coords[1], coords[2]);
+    promiseTemperature = fetchTemperature(coords[1], coords[2]);
   }
   
   // Wait for results (execution was already parallel)
-  let resultsAPI = [], resultsGEC = [], resultWeather = null;
+  let resultsAPI = [], resultsGEC = [], resultRain = null, resultTemperature = null;
   if (promisesAPI.length > 0) {
     resultsAPI = await Promise.all(promisesAPI);
   }
   if (promisesGEC.length > 0) {
     resultsGEC = await Promise.all(promisesGEC);
   }
-  if (promiseWeather) {
-    resultWeather = await promiseWeather;
+  if (promiseRain) {
+    resultRain = await promiseRain;
+  }
+  if (promiseTemperature) {
+    resultTemperature = await promiseTemperature;
   }
   
-  return { resultsAPI, resultsGEC, resultWeather };
+  return { resultsAPI, resultsGEC, resultRain, resultTemperature };
 }
 
 async function processCoords(promise, type, timeout, stations) {
@@ -654,7 +759,7 @@ async function displayStations() {
   try {
     display(document.createElement("br"));
     display(`Fetching data... `);
-    let { resultsAPI, resultsGEC, resultWeather } = await fetchAllData(coords, filteredStations);
+    let { resultsAPI, resultsGEC, resultRain, resultTemperature } = await fetchAllData(coords, filteredStations);
     display(" Finished");
 
     // If location was pending, check if actual location arrived and differs
@@ -668,10 +773,10 @@ async function displayStations() {
         display("Fetching correct data... ");
         if (coords[0] !== '') {
           // actual location is near a known station, fetch all data types in parallel
-          ({resultsAPI, resultsGEC, resultWeather} = await fetchAllData(coords, filteredStations));
+          ({resultsAPI, resultsGEC, resultRain, resultTemperature} = await fetchAllData(coords, filteredStations));
         } else {
           // actual location is far from known stations, only fetch weather
-          ({resultsAPI, resultsGEC, resultWeather} = await fetchAllData(coords, [], false, false, true));
+          ({resultsAPI, resultsGEC, resultRain, resultTemperature} = await fetchAllData(coords, [], false, false, true));
         }
         display(" Finished");
       }
@@ -682,7 +787,7 @@ async function displayStations() {
     const all_dataGEC = resultsGEC.map(json_data => extractGECInfos(json_data));
     const all_dataMerged = all_dataAPI.map((dataAPI, index) => {
       const dataGEC = all_dataGEC[index];
-      return mergeInfos(dataAPI, dataGEC);
+      return mergeDepartures(dataAPI, dataGEC);
     });
     
     format_title(1, "Prochains trains à " + formatTimeHMS(now));
@@ -690,8 +795,10 @@ async function displayStations() {
     if (advanced)
       all_dataGEC.forEach((dataGEC, index) => displayDeparturesGEC(dataGEC, null));
 
-    const dataWeather = extractWeatherInfos(resultWeather);
-    displayWeather(dataWeather);
+    const dataRain = extractRainInfos(resultRain);
+    const dataTemperature = extractTemperatureInfos(resultTemperature);
+    const mergedWeatherData = mergeWeather(dataRain, dataTemperature);
+    displayWeather(mergedWeatherData);
 
     if (!advanced) {
       statusElement.innerHTML = "";
