@@ -453,12 +453,13 @@ function displayDepartures(data, direction_excludes, count, advanced) {
     {
       const delay = (dep.get("atime") != dep.get("btime")); // could use ad.get("delay") too
       const suppressed = ((dep.get("status") || "").toLowerCase().indexOf("suppress") != -1);
-      let cr = suppressed ? "real_suppressed " : "real_present ";
+      let cr = "real ";
       cr += delay || suppressed ? "real_disrupted " : "";
       cr += dep.has("discrepancy") ? "real_discrepancy " : "";
-      const cs = (suppressed || delay) ? "scheduled_delay" : "scheduled_normal";
+      let cs = "scheduled ";
+      cs += (suppressed || delay) ? "scheduled_delay" : "scheduled_normal";
 
-      const result = [[getTimeAPI(dep.get("atime")), cr],
+      const result = [[suppressed ? "⨯" :getTimeAPI(dep.get("atime")), cr],
                       [getTimeAPI(dep.get("btime")), cs],
                       [dep.get("track") || "", ""],
                       [dep.get("dest"), "truncate"]];
