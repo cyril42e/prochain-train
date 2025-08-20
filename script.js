@@ -350,7 +350,9 @@ function mergeDepartures(dataAPI, dataGEC) {
       result.set("track", "?");
     }
     const gec_atime = convertTimeGECtoAPI(contentGEC.get("atime"));
-    if (contentAPI.get("atime").localeCompare(gec_atime)) {
+    if (contentAPI.get("atime").localeCompare(gec_atime) != 0) {
+      // GEC tends to be more reliable, but mark the discrepancy
+      result.set("discrepancy");
       result.set("atime", gec_atime);
     }
     return result;
@@ -451,7 +453,9 @@ function displayDepartures(data, direction_excludes, count, advanced) {
     {
       const delay = (dep.get("atime") != dep.get("btime")); // could use ad.get("delay") too
       const suppressed = ((dep.get("status") || "").toLowerCase().indexOf("suppress") != -1);
-      const cr = suppressed ? "real_suppressed" : (delay ? "real_delay" : "real_normal");
+      let cr = suppressed ? "real_suppressed " : "real_present ";
+      cr += delay || suppressed ? "real_disrupted " : "";
+      cr += dep.has("discrepancy") ? "real_discrepancy " : "";
       const cs = (suppressed || delay) ? "scheduled_delay" : "scheduled_normal";
 
       const result = [[getTimeAPI(dep.get("atime")), cr],
@@ -662,7 +666,7 @@ const count_request = count_display*4;
 const advanced = params.get('advanced') == 1 ? true : false;
 const invert = params.get('invert') == 1 ? true : false;
 const farThreshold = 20.0; // distance in km to consider the user far from known stations and fetch weather only
-const locationTimeout = params.has('lt') ? parseInt(params.get('lt')) : 300;
+const locationTimeout = params.has('lt') ? parseInt(params.get('lt')) : 500;
 const retryCount = params.has('retry') ? parseInt(params.get('retry')) : 3;
 
 let coords = [];

@@ -3,14 +3,21 @@ body {
     font-family: Arial, Helvetica, sans-serif;
 }
 
-.real_normal {
+.real_present {
   font-weight: bold;
 }
 
-.real_delay {
-  font-weight: bold;
+.real_disrupted {
   color: red;
 }
+
+.real_discrepancy {
+  color: orange;
+}
+
+.real_suppressed {
+  text-decoration: line-through;
+ }
 
 .scheduled_normal {
   color: grey;
@@ -18,11 +25,6 @@ body {
 
 .scheduled_delay {
   text-decoration: line-through;
-}
-
-.real_suppressed {
-  text-decoration: line-through;
-  color: red;
 }
 
 table {
