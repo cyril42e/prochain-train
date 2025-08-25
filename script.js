@@ -350,9 +350,10 @@ function mergeDepartures(dataAPI, dataGEC) {
       result.set("track", "?");
     }
     const gec_atime = convertTimeGECtoAPI(contentGEC.get("atime"));
-    if (contentAPI.get("atime").localeCompare(gec_atime) != 0) {
+    const api_atime = result.get("atime");
+    if (api_atime.localeCompare(gec_atime) != 0) {
       // GEC tends to be more reliable, but mark the discrepancy
-      result.set("discrepancy");
+      result.set("discrepancy", getTimeAPI(api_atime));
       result.set("atime", gec_atime);
     }
     return result;
@@ -463,8 +464,16 @@ function displayDepartures(data, direction_excludes, count, advanced) {
                       [getTimeAPI(dep.get("btime")), cs],
                       [dep.get("track") || "", ""],
                       [dep.get("dest"), "truncate"]];
-      if (dep.has("disruption")) {
-        result.push(["(" + dep.get("disruption") + ")", "disruption"]);
+
+      if (dep.has("discrepancy") || dep.has("disruption")) {
+        let details = "";
+        if (dep.has("discrepancy")) {
+          details += "[" + dep.get("discrepancy") + "] ";
+        }
+        if (dep.has("disruption")) {
+          details += "(" + dep.get("disruption") + ")";
+        }
+        result.push([details, "disruption"]);
       }
       results.push(result);
       ndisp++;
