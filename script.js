@@ -256,7 +256,10 @@ function extractAPIInfos(jsons_data) {
           ["dest", dep.display_informations.direction.replace(/ \(.*/g, "")],
           ["station", dep.stop_point.name]
         ]);
-        results.set(dep.display_informations.headsign, result);
+	if (!results.has(dep.display_informations.headsign)) {
+          // avoid overriding by the same train the next days
+          results.set(dep.display_informations.headsign, result);
+	}
       });
       json_data.disruptions.forEach(dis => {
         const trainNumber = dis.impacted_objects[0].pt_object.trip.name;
