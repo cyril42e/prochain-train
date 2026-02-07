@@ -30,7 +30,23 @@ function formatDateFile(date) {
 }
 
 function convertTimeGECtoAPI(datetime) {
-  return datetime.replace(/[+-][0-9]{2}:[0-9]{2}$/, "").replace(/\-/g, "").replace(/:/g, "");
+  const date = new Date(datetime);
+  const options = {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  };
+  const parts = new Intl.DateTimeFormat("en-US", options).formatToParts(date);
+  const map = {};
+  parts.forEach(({ type, value }) => {
+    map[type] = value;
+  });
+  return `${map.year}${map.month}${map.day}T${map.hour}${map.minute}${map.second}`;
 }
 
 function dist(lat1, lon1, lat2, lon2) { // in km
